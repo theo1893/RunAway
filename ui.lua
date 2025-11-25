@@ -169,49 +169,14 @@ ui.BarUpdate = function()
     this.distanceText:SetText(string.format("%s（%s）|r", distanceColor, distance))
     this.distanceText:Show()
 
-    -- 仅当指定特定filter时, 才展示timer
-    local config = ShaguScan_db.config[this:GetParent().id]
-
     -- 默认隐藏timer
     this.timer:Hide()
 
-    -- 检查config.filter是否包含'klztest'
-    if config and config.filter and string.find(config.filter, "klztest", 1, true) then
-        local showTimer = false
-
-        --local i = 1
-        --while UnitDebuff(this.guid, i) do
-        --    if UnitDebuff(this.guid, i) == "Interface\\Icons\\INV_Misc_Bandage_08" then
-        --        showTimer = true
-        --        break
-        --    end
-        --    i = i + 1
-        --end
-
-        local exist, duration = utils.CheckDebuff(this.guid)
-        local currentTime = GetTime()
-
-        -- 这里的逻辑导致, 仅在监听到指定guid的buff/debuff消失时, 才会把timer清零; 视野消失或者从全局guids移除并不会清除对应的timer, 仍然会继续计算
-        if exist then
-            if not ui.timers[this.guid] then
-                ui.timers[this.guid] = currentTime
-            end
-
-            -- calculate remaining time
-            local remaining = duration - (currentTime - ui.timers[this.guid])
-
-            -- show timer with appropriate value
-            if remaining <= 0 then
-                this.timer:SetText("0.0") -- Show 0.0 when expired
-            else
-                this.timer:SetText(string.format("%.1f", remaining)) -- Show remaining time
-            end
-            this.timer:Show()
-        else
-            -- no bandage, hide timer
-            this.timer:Hide()
-            ui.timers[this.guid] = nil
-        end
+    -- Use pre-calculated remaining_time from unit_data (updated every 0.5s in main loop)
+    -- This avoids redundant config parsing, CheckAura calls, and timer structure management
+    if this.unit_data and this.unit_data.remaining_time and this.unit_data.remaining_time > 0 then
+        this.timer:SetText(string.format("%.1f", this.unit_data.remaining_time))
+        this.timer:Show()
     end
 end
 
@@ -226,9 +191,12 @@ ui.BarEvent = function()
     CombatFeedback_OnCombatEvent(arg2, arg3, arg4, arg5)
 end
 
-ui.CreateBar = function(parent, guid)
+ui.CreateBar = function(parent, guid, unit_data)
     local frame = CreateFrame("Button", nil, parent)
     frame.guid = guid
+
+    -- Store pre-calculated data for use by OnUpdate
+    frame.unit_data = unit_data or {}
 
     -- assign required events and scripts
     frame:RegisterEvent("UNIT_COMBAT")
@@ -385,62 +353,91 @@ ui:SetScript("OnUpdate", function()
         -- collect visible units with their remaining bandage time
         local visible_units = {}
 
-        for guid, time in pairs(ShaguScan.core.guids) do
+        for guid, data in pairs(ShaguScan.core.guids) do
             -- apply filters
             local visible = true
+            local auraMatched = false
+            local matched_aura_id = nil
             for name, args in pairs(root.filter) do
                 if filter[name] then
                     visible = visible and filter[name](guid, args)
+
+                    -- 命中aura，保存aura identifier
+                    if visible and name == "aura" then
+                        auraMatched = true
+                        matched_aura_id = args
+                    end
                 end
             end
 
             -- check if unit exists and is visible
             if UnitExists(guid) and visible then
-                -- calculate remaining water shield time for sorting
-                local has_water_shield = false
-                local remaining_time = 0
-                local current_time = GetTime()
-                local water_shield_duration = 10 -- match timer logic duration
+                -- 如果aura命中，使用三层映射维护 guid -> aura -> timer
+                if auraMatched and matched_aura_id then
+                    local remaining_time = 0
+                    local current_time = GetTime()
 
-                -- check if unit has water shield buff (match timer logic)
-                local i = 1
-                while UnitBuff(guid, i) do
-                    if UnitBuff(guid, i) == "Interface\\Icons\\Ability_Shaman_WaterShield" then
-                        has_water_shield = true
-                        break
-                    end
-                    i = i + 1
-                end
+                    -- 检查aura是否存在并获取duration
+                    local exist, total_duration = utils.CheckAura(guid, matched_aura_id)
 
-                -- calculate remaining time
-                if has_water_shield then
-                    if ui.timers[guid] then
-                        remaining_time = water_shield_duration - (current_time - ui.timers[guid])
-                        -- ensure non-negative time
-                        remaining_time = math.max(0, remaining_time)
+                    if exist then
+                        -- 初始化三层嵌套结构
+                        if not ui.timers[guid] then
+                            ui.timers[guid] = {}
+                        end
+
+                        -- 维护guid -> aura -> timer的映射
+                        if ui.timers[guid][matched_aura_id] then
+                            remaining_time = total_duration - (current_time - ui.timers[guid][matched_aura_id])
+                            remaining_time = math.max(0, remaining_time)
+                        else
+                            -- 新检测到的aura，开始追踪
+                            ui.timers[guid][matched_aura_id] = current_time
+                            remaining_time = total_duration
+                        end
+
+                        -- add to visible units table
+                        table.insert(visible_units, {
+                            guid = guid,
+                            last_seen = data.time,
+                            remaining_time = remaining_time,
+                        })
                     else
-                        -- new water shield, default to full duration
-                        remaining_time = water_shield_duration
-                        ui.timers[guid] = current_time
+                        -- aura不再存在，清理timer
+                        if ui.timers[guid] and ui.timers[guid][matched_aura_id] then
+                            ui.timers[guid][matched_aura_id] = nil
+                            -- 清理空的guid条目
+                            local has_timers = false
+                            for _ in pairs(ui.timers[guid]) do
+                                has_timers = true
+                                break
+                            end
+                            if not has_timers then
+                                ui.timers[guid] = nil
+                            end
+                        end
                     end
+                else
+                    -- 未命中aura, 但是需要展示, 则简单添加仅table
+                    table.insert(visible_units, {
+                        guid = guid,
+                        last_seen = data.time,
+                        remaining_time = 0,
+                    })
                 end
+            end
+        end
 
-                -- add to visible units table
-                table.insert(visible_units, {
-                    guid = guid,
-                    last_seen = time,
-                    remaining_time = remaining_time,
-                })
+        -- 清理不再被追踪的单位的timer
+        for guid in pairs(ui.timers) do
+            if not ShaguScan.core.guids[guid] then
+                ui.timers[guid] = nil
             end
         end
 
         -- sort visible units
         table.sort(visible_units, function(a, b)
-            if config.filter and string.find(config.filter, "klztest", 1, true) then
-                return a.remaining_time > b.remaining_time
-            end
-
-            return a.remaining_time < b.remaining_time
+            return a.remaining_time > b.remaining_time
         end)
 
         -- now display the sorted units
@@ -456,7 +453,13 @@ ui:SetScript("OnUpdate", function()
             y = (count - 1) * (config.height + config.spacing) + title_size
             height = math.max(y + config.height + config.spacing, height)
 
-            root.frames[guid] = root.frames[guid] or root:CreateBar(guid)
+            -- Create bar if needed, passing unit_data
+            if not root.frames[guid] then
+                root.frames[guid] = root:CreateBar(guid, unit_data)
+            else
+                -- Update existing bar's unit_data
+                root.frames[guid].unit_data = unit_data
+            end
 
             -- update position if required
             if not root.frames[guid].pos or root.frames[guid].pos ~= x .. -y then

@@ -236,19 +236,32 @@ utils.GetDistance = function(unit)
     return distance, distanceValue
 end
 
--- Buff duration mapping (icon path -> duration in seconds)
-utils.buffDurationMap = {
+utils.auraIconMap = {
+    ["watershield"] = "Interface\\Icons\\Ability_Shaman_WaterShield"
+}
+
+utils.auraDurationMap = {
     ["Interface\\Icons\\Ability_Shaman_WaterShield"] = 10, -- Water Shield duration
 }
 
--- 检查debuff, 如果命中debuff配置, 返回true, 和debuff的最长持续时间
-utils.CheckDebuff = function(unit)
+utils.CheckAura = function(unit, aura)
+
+    -- search aura from auraDurationMap. if aura exists on this unit, return true and the total duration
+
+    if not aura then
+        return false, 0
+    end
+
+    if not utils.auraIconMap[aura] then
+        return false, 0
+    end
+
+    local target = utils.auraIconMap[aura]
     local i = 1
     while UnitBuff(unit, i) do
         local buffIcon = UnitBuff(unit, i)
-        -- Check if this buff is in our duration map
-        if utils.buffDurationMap[buffIcon] then
-            return true, utils.buffDurationMap[buffIcon]
+        if buffIcon == target and utils.auraDurationMap[buffIcon] then
+            return true, utils.auraDurationMap[buffIcon]
         end
         i = i + 1
     end
