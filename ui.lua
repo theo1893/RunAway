@@ -24,37 +24,75 @@ ui.timers = {}
 
 -- Boss-specific layout definitions
 ui.bossLayouts = {
-    ["老杂斑野猪"] = {
-        name = "Test",
+    ["阿诺玛鲁斯"] = {
+        name = "阿诺玛鲁斯",
         anchor = "CENTER",
         x = 0,
         y = 0,
-        scale = 1,
+        scale = 1.2,
         columns = {
             {
-                title = "Aura1 Players",
-                filter = "aura:aura1",
+                title = "炸弹",
+                filter = "aura:arcaneoverload",
                 width = 120,
                 height = 14,
                 spacing = 4,
                 maxrow = 20,
                 showDistance = true,
                 showTimer = false,
-                sortByTimer = false
+                sortByTimer = false,
+                alignment = "right", -- Align bars to the right
+                colors = {
+                    bgColor = { 0.3, 0.1, 0.1, 0.9 }, -- Redish background
+                    borderColor = { 1, 0.2, 0.2, 1 }, -- Red border
+                    titleColor = { 1, 0.4, 0.4, 1 }        -- Light red title
+                }
             },
             {
-                title = "Aura2 Players",
-                filter = "aura:aura2",
+                title = "踩圈",
+                filter = "aura:arcanedampening",
                 width = 120,
                 height = 14,
                 spacing = 4,
                 maxrow = 20,
                 showDistance = true,
                 showTimer = true,
-                sortByTimer = true
+                sortByTimer = true,
+                alignment = "center", -- Align bars to the center
+                colors = {
+                    bgColor = { 0.1, 0.2, 0.1, 0.9 }, -- Green background
+                    borderColor = { 0.2, 0.8, 0.2, 1 }, -- Green border
+                    titleColor = { 0.4, 1, 0.4, 1 }        -- Light green title
+                }
             }
         }
-    }
+    },
+    ["老杂斑野猪"] = {
+        name = "老杂斑野猪",
+        anchor = "CENTER",
+        x = 0,
+        y = 0,
+        scale = 1.2,
+        columns = {
+            {
+                title = "绷带",
+                filter = "aura:bandage",
+                width = 120,
+                height = 14,
+                spacing = 4,
+                maxrow = 20,
+                showDistance = true,
+                showTimer = true,
+                sortByTimer = true,
+                alignment = "center", -- Align bars to the center
+                colors = {
+                    bgColor = { 0.1, 0.2, 0.1, 0.9 }, -- Green background
+                    borderColor = { 0.2, 0.8, 0.2, 1 }, -- Green border
+                    titleColor = { 0.4, 1, 0.4, 1 }        -- Light green title
+                }
+            }
+        }
+    },
 }
 
 -- Get current boss name from detected bosses
@@ -123,11 +161,31 @@ ui.CreateColumn = function(parent, columnConfig, columnIndex)
     column.index = columnIndex
     column.bars = {}
 
-    -- Create column title
+    -- Set column background
+    column:SetBackdrop(ui.background)
+    if columnConfig.colors and columnConfig.colors.bgColor then
+        column:SetBackdropColor(unpack(columnConfig.colors.bgColor))
+    end
+
+    -- Create column border with custom color
+    local border = CreateFrame("Frame", nil, column)
+    border:SetBackdrop(ui.border)
+    border:SetPoint("TOPLEFT", column, "TOPLEFT", -2, 2)
+    border:SetPoint("BOTTOMRIGHT", column, "BOTTOMRIGHT", 2, -2)
+
+    if columnConfig.colors and columnConfig.colors.borderColor then
+        border:SetBackdropBorderColor(unpack(columnConfig.colors.borderColor))
+    end
+
+    column.border = border
+
+    -- Create column title with custom color
     column.title = column:CreateFontString(nil, "HIGH", "GameFontWhite")
     column.title:SetFont(STANDARD_TEXT_FONT, 9, "THINOUTLINE")
     column.title:SetPoint("TOP", column, "TOP", 0, -2)
-    column.title:SetTextColor(0.8, 0.8, 1, 1)
+    if columnConfig.colors and columnConfig.colors.titleColor then
+        column.title:SetTextColor(unpack(columnConfig.colors.titleColor))
+    end
     column.title:SetText(columnConfig.title or "Column " .. columnIndex)
 
     return column
@@ -253,7 +311,7 @@ end
 
 ui.BarUpdate = function()
     -- Animate combat text
-    CombatFeedback_OnUpdate(arg1)
+    --CombatFeedback_OnUpdate(arg1)
 
     if not UnitExists(this.guid) then
         return
@@ -273,14 +331,14 @@ ui.BarUpdate = function()
     local name = UnitName(this.guid)
     this.text:SetText(level_color .. level .. "|r " .. name)
 
-    -- Update health bar border
-    if this.hover then
-        this.border:SetBackdropBorderColor(1, 1, 1, 1)
-    elseif UnitAffectingCombat(this.guid) then
-        this.border:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)
-    else
-        this.border:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-    end
+    ---- Update health bar border
+    --if this.hover then
+    --    this.border:SetBackdropBorderColor(1, 1, 1, 1)
+    --elseif UnitAffectingCombat(this.guid) then
+    --    this.border:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)
+    --else
+    --    this.border:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+    --end
 
     -- Show raid icon if existing
     if GetRaidTargetIndex(this.guid) then
@@ -339,7 +397,7 @@ ui.BarEvent = function()
     if arg1 ~= this.guid then
         return
     end
-    CombatFeedback_OnCombatEvent(arg2, arg3, arg4, arg5)
+    --CombatFeedback_OnCombatEvent(arg2, arg3, arg4, arg5)
 end
 
 -- Process units for a specific column filter
@@ -449,18 +507,20 @@ ui:SetScript("OnUpdate", function()
 
     -- If not in boss combat, hide everything
     if not isBossCombat then
-        if ui.rootFrame then
-            ui.rootFrame:Hide()
-        end
+        --if ui.rootFrame then
+        --    ui.rootFrame:Hide()
+        --end
+        RunAway.core.ResetStatus()
         return
     end
 
     -- Get current boss and its layout
     local currentBoss = ui.GetCurrentBoss()
     if not currentBoss then
-        if ui.rootFrame then
-            ui.rootFrame:Hide()
-        end
+        --if ui.rootFrame then
+        --    ui.rootFrame:Hide()
+        --end
+        RunAway.core.ResetStatus()
         return
     end
 
@@ -521,9 +581,16 @@ ui:SetScript("OnUpdate", function()
 
             local bar = column.bars[guid]
 
-            -- Position bar
+            -- Position bar based on column alignment
             bar:ClearAllPoints()
-            bar:SetPoint("TOP", column, "TOP", 0, -y)
+            local alignment = columnConfig.alignment or "left"  -- Default to left alignment if not specified
+            if alignment == "right" then
+                bar:SetPoint("TOPRIGHT", column, "TOPRIGHT", 0, -y)
+            elseif alignment == "center" then
+                bar:SetPoint("TOP", column, "TOP", 0, -y)  -- TOP anchor centers the bar horizontally
+            else
+                bar:SetPoint("TOPLEFT", column, "TOPLEFT", 0, -y)  -- Default to left alignment
+            end
             bar:Show()
 
             y = y + columnConfig.height + columnConfig.spacing
@@ -544,9 +611,19 @@ ui:SetScript("OnUpdate", function()
             end
         end
 
-        -- Update column size and position
+        -- Calculate extra width needed for distance text (left) and timer text (right)
+        local extraWidth = 0
+        if columnConfig.showDistance then
+            extraWidth = extraWidth + 30-- Estimated width for distance display like ">28" or "12.3"
+        end
+        if columnConfig.showTimer then
+            extraWidth = extraWidth + 30 -- Estimated width for timer display like "12.3s"
+        end
+
+        -- Update column size and position with extra width
         local columnHeight = math.max(y, titleHeight + columnConfig.height)
-        column:SetWidth(columnConfig.width)
+        local actualColumnWidth = columnConfig.width + extraWidth
+        column:SetWidth(actualColumnWidth)
         column:SetHeight(columnHeight)
 
         -- Position column
@@ -554,7 +631,8 @@ ui:SetScript("OnUpdate", function()
         column:SetPoint("TOPLEFT", ui.rootFrame, "TOPLEFT", totalWidth, -titleHeight)
         column:Show()
 
-        totalWidth = totalWidth + columnConfig.width + columnSpacing
+        -- Update total width for root frame calculation
+        totalWidth = totalWidth + actualColumnWidth + columnSpacing
         maxHeight = math.max(maxHeight, columnHeight)
     end
 

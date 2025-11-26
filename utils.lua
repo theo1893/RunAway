@@ -239,16 +239,24 @@ end
 utils.auraIconMap = {
     ["watershield"] = "Interface\\Icons\\Ability_Shaman_WaterShield",
     ["bandage"] = "Interface\\Icons\\INV_Misc_Bandage_08",
-    ["aura1"] = "Interface\\Icons\\Spell_Holy_AuraOfLight",
-    ["aura2"] = "Interface\\Icons\\Spell_Holy_GreaterBlessingofWisdom",
+    ["arcaneoverload"] = "Interface\\Icons\\INV_Misc_Bomb_04",
+    ["arcanedampening"] = "Interface\\Icons\\Spell_Nature_AbolishMagic",
 }
 
 utils.auraDurationMap = {
-    ["Interface\\Icons\\Ability_Shaman_WaterShield"] = 10, -- Water Shield duration
-    ["Interface\\Icons\\INV_Misc_Bandage_08"] = 60, -- Bandage duration
-    ["Interface\\Icons\\Spell_Holy_AuraOfLight"] = 0, -- Aura 1
-    ["Interface\\Icons\\Spell_Holy_GreaterBlessingofWisdom"] = 60, -- Aura 2
+    ["Interface\\Icons\\Ability_Shaman_WaterShield"] = 10,
+    ["Interface\\Icons\\INV_Misc_Bandage_08"] = 60,
+    ["Interface\\Icons\\INV_Misc_Bomb_04"] = 15,
+    ["Interface\\Icons\\Spell_Nature_AbolishMagic"] = 45,
 }
+
+--local icon = {
+--	arcaneOverload = "INV_Misc_Bomb_04",
+--	arcanePrison = "Spell_Frost_Glacier",
+--	manaboundStrike = "Spell_Arcane_FocusedPower",
+--	manaboundExpire = "Spell_Holy_FlashHeal",
+--	arcaneDampening = "Spell_Nature_AbolishMagic", -- icon for Arcane Dampening
+--}
 
 utils.CheckAura = function(unit, aura)
 
@@ -274,17 +282,28 @@ utils.CheckAura = function(unit, aura)
         i = i + 1
     end
 
-    -- Then check buffs
-    i = 1
-    while UnitBuff(unit, i) do
-        local buffIcon = UnitBuff(unit, i)
-        if buffIcon == target and utils.auraDurationMap[buffIcon] then
-            return true, utils.auraDurationMap[buffIcon]
-        end
-        i = i + 1
-    end
+    ---- Then check buffs
+    --i = 1
+    --while UnitBuff(unit, i) do
+    --    local buffIcon = UnitBuff(unit, i)
+    --    if buffIcon == target and utils.auraDurationMap[buffIcon] then
+    --        return true, utils.auraDurationMap[buffIcon]
+    --    end
+    --    i = i + 1
+    --end
 
     return false, 0
+end
+
+-- Utility function to count table elements (works for both arrays and hash tables)
+utils.CountTable = function(tbl)
+    local count = 0
+    if tbl then
+        for _ in pairs(tbl) do
+            count = count + 1
+        end
+    end
+    return count
 end
 
 RunAway.utils = utils

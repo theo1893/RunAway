@@ -12,10 +12,8 @@ core.currentBosses = {}
 
 -- Boss names (configurable list)
 core.bossNames = {
-    ["Ragnaros"] = true,
-    ["Nefarian"] = true,
-    ["Onyxia"] = true,
-    ["老杂斑野猪"] = true
+    ["老杂斑野猪"] = true,
+    ["阿诺玛鲁斯"] = true,
 }
 
 -- Check if a unit is a boss
@@ -30,9 +28,51 @@ core.IsBossUnit = function(unit)
         return true
     end
 
-    -- Check by classification
-    local classification = UnitClassification(unit)
-    return classification == "worldboss" or classification == "rareelite" or classification == "elite"
+end
+
+-- Reset all status for boss combat and UI
+core.ResetStatus = function()
+    -- Core status reset
+    core.guids = {}
+    core.isBossCombat = false
+
+    -- Clear all current bosses
+    for guid in pairs(core.currentBosses) do
+        core.currentBosses[guid] = false
+    end
+
+    -- UI status reset
+    if RunAway.ui then
+        -- Clear UI timers
+        RunAway.ui.timers = {}
+
+        -- Clear root frame completely (not just hide)
+        if RunAway.ui.rootFrame then
+            -- Hide the frame first
+            RunAway.ui.rootFrame:Hide()
+
+            -- Clear and delete all bars and columns
+            if RunAway.ui.rootFrame.columns then
+                for _, column in pairs(RunAway.ui.rootFrame.columns) do
+                    if column.bars then
+                        for bar_guid, bar in pairs(column.bars) do
+                            bar:Hide()
+                            bar = nil  -- Clear bar reference
+                            column.bars[bar_guid] = nil  -- Remove from column bars
+                        end
+                        column.bars = nil  -- Clear bars table
+                    end
+                    column:Hide()
+                    column = nil  -- Clear column reference
+                end
+                RunAway.ui.rootFrame.columns = nil  -- Clear columns table
+            end
+
+            -- Delete the root frame itself
+            RunAway.ui.rootFrame:ClearAllPoints()
+            RunAway.ui.rootFrame = nil  -- Remove root frame reference
+        end
+    end
 end
 
 core.add = function(unit)
@@ -51,24 +91,17 @@ core.add = function(unit)
 
     -- Only add unit if we're already in boss combat or this unit is a boss
     if not core.isBossCombat and not isBoss then
+        --print("not in boss combat. current unit count is ", utils.CountTable(core.guids))
         return
     end
 
+    --print("in boss combat. current unit count is ", utils.CountTable(core.guids))
     -- If this is a boss unit, manage boss combat state
     if isBoss and distanceValue < 100 then
         local isDead = UnitIsDead(unit)
         if isDead then
-            -- Boss died - clear all collected data and exit boss combat
-            core.guids = {}
-            core.isBossCombat = false
-            core.currentBosses[guid] = false
-
-            -- Hide all UI frames
-            if RunAway.ui and RunAway.ui.frames then
-                for caption, root in pairs(RunAway.ui.frames) do
-                    root:Hide()
-                end
-            end
+            -- Boss died - reset all status
+            core.ResetStatus()
             return
         else
             -- Boss is alive - enter boss combat mode
@@ -82,8 +115,8 @@ core.add = function(unit)
 end
 
 -- unitstr
-core:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-core:RegisterEvent("PLAYER_TARGET_CHANGED")
+--core:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+--core:RegisterEvent("PLAYER_TARGET_CHANGED")
 core:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 -- arg1
