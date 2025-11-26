@@ -5,7 +5,35 @@ local utils = RunAway.utils
 local core = CreateFrame("Frame", nil, WorldFrame)
 
 core.guids = {}
-core.max_guids = 60
+
+-- Boss combat tracking variables
+core.isBossCombat = false
+core.currentBosses = {}
+
+-- Boss names (configurable list)
+core.bossNames = {
+    ["Ragnaros"] = true,
+    ["Nefarian"] = true,
+    ["Onyxia"] = true,
+    ["老杂斑野猪"] = true
+}
+
+-- Check if a unit is a boss
+core.IsBossUnit = function(unit)
+    if not UnitExists(unit) then
+        return false
+    end
+
+    -- Check by name
+    local unitName = UnitName(unit)
+    if unitName and core.bossNames[unitName] then
+        return true
+    end
+
+    -- Check by classification
+    local classification = UnitClassification(unit)
+    return classification == "worldboss" or classification == "rareelite" or classification == "elite"
+end
 
 core.add = function(unit)
     local exists, guid = UnitExists(unit)
@@ -18,37 +46,39 @@ core.add = function(unit)
 
     local _, distanceValue = utils.GetDistance(unit)
 
-    if core.guids[guid] then
-        core.guids[guid] = { time = GetTime(), distance = distanceValue }
+    -- Check if this unit is a boss
+    local isBoss = core.IsBossUnit(unit)
+
+    -- Only add unit if we're already in boss combat or this unit is a boss
+    if not core.isBossCombat and not isBoss then
         return
     end
 
-    local guids_count = 0
-    for _ in pairs(core.guids) do
-        guids_count = guids_count + 1
-    end
+    -- If this is a boss unit, manage boss combat state
+    if isBoss and distanceValue < 100 then
+        local isDead = UnitIsDead(unit)
+        if isDead then
+            -- Boss died - clear all collected data and exit boss combat
+            core.guids = {}
+            core.isBossCombat = false
+            core.currentBosses[guid] = false
 
-    if guids_count < core.max_guids then
-        core.guids[guid] = { time = GetTime(), distance = distanceValue }
-        return
-    end
-
-    local farthest_guid, farthest_distance = nil, -1
-
-    for guid_entry, data in pairs(core.guids) do
-        local entry_distance = type(data) == "table" and data.distance or math.huge
-
-        if entry_distance > farthest_distance then
-            farthest_distance = entry_distance
-            farthest_guid = guid_entry
+            -- Hide all UI frames
+            if RunAway.ui and RunAway.ui.frames then
+                for caption, root in pairs(RunAway.ui.frames) do
+                    root:Hide()
+                end
+            end
+            return
+        else
+            -- Boss is alive - enter boss combat mode
+            core.isBossCombat = true
+            core.currentBosses[guid] = true
         end
     end
 
-    -- Remove farthest unit and add new one
-    if farthest_guid then
-        core.guids[farthest_guid] = nil
-        core.guids[guid] = { time = GetTime(), distance = distanceValue }
-    end
+    -- Track all units during boss combat (no GUID limit)
+    core.guids[guid] = { time = GetTime(), distance = distanceValue }
 end
 
 -- unitstr

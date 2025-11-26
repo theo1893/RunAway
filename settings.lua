@@ -4,8 +4,8 @@ local utils = RunAway.utils
 
 local settings = {}
 
-SLASH_RUNAWAY1, SLASH_RUNAWAY2, SLASH_RUNAWAY3 = "/scan", "/sscan", "/runaway"
-
+SLASH_RUNAWAY1 = "/runaway"
+SLASH_RUNAWAY2 = "/ra"
 SlashCmdList["RUNAWAY"] = function(input)
   local caption = input and input ~= '' and input or "Scanner"
   settings.OpenConfig(caption)

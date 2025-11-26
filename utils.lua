@@ -237,11 +237,17 @@ utils.GetDistance = function(unit)
 end
 
 utils.auraIconMap = {
-    ["watershield"] = "Interface\\Icons\\Ability_Shaman_WaterShield"
+    ["watershield"] = "Interface\\Icons\\Ability_Shaman_WaterShield",
+    ["bandage"] = "Interface\\Icons\\INV_Misc_Bandage_08",
+    ["aura1"] = "Interface\\Icons\\Spell_Holy_AuraOfLight",
+    ["aura2"] = "Interface\\Icons\\Spell_Holy_GreaterBlessingofWisdom",
 }
 
 utils.auraDurationMap = {
     ["Interface\\Icons\\Ability_Shaman_WaterShield"] = 10, -- Water Shield duration
+    ["Interface\\Icons\\INV_Misc_Bandage_08"] = 60, -- Bandage duration
+    ["Interface\\Icons\\Spell_Holy_AuraOfLight"] = 0, -- Aura 1
+    ["Interface\\Icons\\Spell_Holy_GreaterBlessingofWisdom"] = 60, -- Aura 2
 }
 
 utils.CheckAura = function(unit, aura)
@@ -257,7 +263,19 @@ utils.CheckAura = function(unit, aura)
     end
 
     local target = utils.auraIconMap[aura]
+
+    -- Check debuffs first
     local i = 1
+    while UnitDebuff(unit, i) do
+        local buffIcon = UnitDebuff(unit, i)
+        if buffIcon == target and utils.auraDurationMap[buffIcon] then
+            return true, utils.auraDurationMap[buffIcon]
+        end
+        i = i + 1
+    end
+
+    -- Then check buffs
+    i = 1
     while UnitBuff(unit, i) do
         local buffIcon = UnitBuff(unit, i)
         if buffIcon == target and utils.auraDurationMap[buffIcon] then
