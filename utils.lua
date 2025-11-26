@@ -1,4 +1,4 @@
-if ShaguScan.disabled then
+if RunAway.disabled then
     return
 end
 
@@ -269,4 +269,4 @@ utils.CheckAura = function(unit, aura)
     return false, 0
 end
 
-ShaguScan.utils = utils
+RunAway.utils = utils

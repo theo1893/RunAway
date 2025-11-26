@@ -1,20 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(__NEW_LINE__ grep -i bandage /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/*)",
-      "Bash(__NEW_LINE__ grep -A 50 \"ui.BarUpdate = function\" /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/ui.lua)",
-      "Bash(__NEW_LINE__ grep -A 2 \"local frame = CreateFrame.*parent.*guid\" /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/ui.lua)",
-      "Bash(__NEW_LINE__ git diff /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/ui.lua)",
+      "Bash(__NEW_LINE__ grep -i bandage /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/*)",
+      "Bash(__NEW_LINE__ grep -A 50 \"ui.BarUpdate = function\" /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/ui.lua)",
+      "Bash(__NEW_LINE__ grep -A 2 \"local frame = CreateFrame.*parent.*guid\" /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/ui.lua)",
+      "Bash(__NEW_LINE__ git diff /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/ui.lua)",
       "Bash(__NEW_LINE__ echo \"# Implementation Summary\")",
       "Bash(__NEW_LINE__ echo \"1. Timer Display Component:\")",
-      "Bash(__NEW_LINE__ grep -A 70 \"run through all guids and fill with bars\" /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/ui.lua)",
-      "Bash(__NEW_LINE__ sed -n '408,420p' /d/Softwares/TurtleWoW/Interface/AddOns/ShaguScan/ui.lua)",
+      "Bash(__NEW_LINE__ grep -A 70 \"run through all guids and fill with bars\" /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/ui.lua)",
+      "Bash(__NEW_LINE__ sed -n '408,420p' /d/Softwares/TurtleWoW/Interface/AddOns/RunAway/ui.lua)",
       "Bash(__NEW_LINE__ echo \"# Dynamic Sorting Implementation Summary\")",
       "Bash(__NEW_LINE__ echo \"1. Sorting Logic:\")",
       "Bash(echo:*)",
       "Bash(__NEW_LINE__ echo \"✅ All requested features have been successfully implemented:\")",
       "Bash(__NEW_LINE__ echo \"1. Display: Yellow timer text showing 45s countdown to the right of player bars\")",
-      "Bash(__NEW_LINE__ echo \"Implementation Complete: All requested bandage timer features have been added to ShaguScan\")",
+      "Bash(__NEW_LINE__ echo \"Implementation Complete: All requested bandage timer features have been added to RunAway\")",
       "Bash(__NEW_LINE__)",
       "Bash(__NEW_LINE__ echo \"## FINAL IMPLEMENTATION STATUS: ✅ SUCCESSFULLY COMPLETED\")",
       "Bash(cat:*)"

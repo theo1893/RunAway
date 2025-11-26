@@ -1,12 +1,12 @@
-if ShaguScan.disabled then return end
+if RunAway.disabled then return end
 
-local utils = ShaguScan.utils
+local utils = RunAway.utils
 
 local settings = {}
 
-SLASH_SHAGUSCAN1, SLASH_SHAGUSCAN2, SLASH_SHAGUSCAN3 = "/scan", "/sscan", "/shaguscan"
+SLASH_RUNAWAY1, SLASH_RUNAWAY2, SLASH_RUNAWAY3 = "/scan", "/sscan", "/runaway"
 
-SlashCmdList["SHAGUSCAN"] = function(input)
+SlashCmdList["RUNAWAY"] = function(input)
   local caption = input and input ~= '' and input or "Scanner"
   settings.OpenConfig(caption)
 end
@@ -72,26 +72,26 @@ end
 
 settings.OpenConfig = function(caption)
   -- Toggle Existing Dialog
-  local existing = getglobal("ShaguScanConfigDialog"..caption)
+  local existing = getglobal("RunAwayConfigDialog"..caption)
   if existing then
     if existing:IsShown() then existing:Hide() else existing:Show() end
     return
   end
 
   -- Create defconfig if new config
-  if not ShaguScan_db.config[caption] then
-    ShaguScan_db.config[caption] = {
+  if not RunAway_db.config[caption] then
+    RunAway_db.config[caption] = {
       filter = "npc,infight,alive",
       scale = 1, anchor = "CENTER", x = 0, y = 0, width = 75, height = 12, spacing = 4, maxrow = 20
     }
   end
 
   -- Main Dialog
-  local dialog = CreateFrame("Frame", "ShaguScanConfigDialog"..caption, UIParent)
-  table.insert(UISpecialFrames, "ShaguScanConfigDialog"..caption)
+  local dialog = CreateFrame("Frame", "RunAwayConfigDialog"..caption, UIParent)
+  table.insert(UISpecialFrames, "RunAwayConfigDialog"..caption)
 
   -- Save Shortcuts
-  local config = ShaguScan_db.config[caption]
+  local config = RunAway_db.config[caption]
   local caption = caption
 
   dialog:SetFrameStrata("DIALOG")
@@ -146,8 +146,8 @@ settings.OpenConfig = function(caption)
       y = tonumber(y) or config.y,
     }
 
-    ShaguScan_db.config[caption] = nil
-    ShaguScan_db.config[new_caption] = new_config
+    RunAway_db.config[caption] = nil
+    RunAway_db.config[new_caption] = new_config
     this:GetParent():Hide()
   end)
 
@@ -159,7 +159,7 @@ settings.OpenConfig = function(caption)
   dialog.delete:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 8, 8)
   dialog.delete:SetText("Delete")
   dialog.delete:SetScript("OnClick", function()
-    ShaguScan_db.config[caption] = nil
+    RunAway_db.config[caption] = nil
     this:GetParent():Hide()
   end)
 
@@ -398,4 +398,4 @@ settings.OpenConfig = function(caption)
   backdrop.pos = backdrop.pos + 18
 end
 
-ShaguScan.settings = settings
+RunAway.settings = settings

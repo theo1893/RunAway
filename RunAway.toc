@@ -1,9 +1,9 @@
 ## Interface: 11200
-## Title: |cffffcc00Shagu|cffffffffScan
+## Title: |cffffcc00Run|cffffffffAway
 ## Author: Shagu
 ## Notes: Uses SuperWoW GUIDs to show nearby units
 ## Version: 1.0
-## SavedVariablesPerCharacter: ShaguScan_db
+## SavedVariablesPerCharacter: RunAway_db
 
 global.lua
 utils.lua

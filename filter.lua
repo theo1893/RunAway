@@ -1,8 +1,8 @@
-if ShaguScan.disabled then
+if RunAway.disabled then
     return
 end
 
-local utils = ShaguScan.utils
+local utils = RunAway.utils
 
 local filter = { }
 
@@ -271,4 +271,4 @@ filter.aura = function(unit, aura)
     return false
 end
 
-ShaguScan.filter = filter
+RunAway.filter = filter

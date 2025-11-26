@@ -1,4 +1,4 @@
-# ShaguScan
+# RunAway
 
 <img src="./screenshots/raidtargets.jpg" float="right" align="right">
 
@@ -14,17 +14,17 @@ The addon can be used to see all marked raid targets, detect rare mobs, find nea
 > It won't work without it. Really.
 
 ## Installation (Vanilla, 1.12)
-1. Download **[Latest Version](https://github.com/shagu/ShaguScan/archive/master.zip)**
+1. Download **[Latest Version](https://github.com/theo1893/RunAway/archive/master.zip)**
 2. Unpack the Zip file
-3. Rename the folder "ShaguScan-master" to "ShaguScan"
-4. Copy "ShaguScan" into Wow-Directory\Interface\AddOns
+3. Rename the folder "RunAway-master" to "RunAway"
+4. Copy "RunAway" into Wow-Directory\Interface\AddOns
 5. Restart Wow
 
 # Usage
 
 Multiple windows can be created that each show health bars of nearby units based on custom filters. A new window with the title "Alliance PvP" can be created by typing `/scan Alliance PvP`. A configuration will appear, in which the created window can be customized. You can chose as many filters as you wish (comma separated).
 
-In case `/scan` is already blocked by another addon, you can also use `/sscan` or `/shaguscan`.
+In case `/scan` is already blocked by another addon, you can also use `/sscan` or `/runaway`.
 
 As a filter you could for example choose: `player,pvp,alliance,alive` to only show players with pvp enabled on the alliance side that are alive.
 

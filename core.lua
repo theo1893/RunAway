@@ -1,7 +1,7 @@
-if ShaguScan.disabled then
+if RunAway.disabled then
     return
 end
-local utils = ShaguScan.utils
+local utils = RunAway.utils
 local core = CreateFrame("Frame", nil, WorldFrame)
 
 core.guids = {}
@@ -80,4 +80,4 @@ core:SetScript("OnEvent", function()
     end
 end)
 
-ShaguScan.core = core
+RunAway.core = core

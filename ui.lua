@@ -1,10 +1,10 @@
-if ShaguScan.disabled then
+if RunAway.disabled then
     return
 end
 
-local utils = ShaguScan.utils
-local filter = ShaguScan.filter
-local settings = ShaguScan.settings
+local utils = RunAway.utils
+local filter = RunAway.filter
+local settings = RunAway.settings
 
 local ui = CreateFrame("Frame", nil, UIParent)
 
@@ -24,7 +24,7 @@ ui.frames = {}
 ui.timers = {}
 
 ui.CreateRoot = function(parent, caption)
-    local frame = CreateFrame("Frame", "ShaguScan" .. caption, parent)
+    local frame = CreateFrame("Frame", "RunAway" .. caption, parent)
     frame.id = caption
 
     frame:EnableMouse(true)
@@ -38,7 +38,7 @@ ui.CreateRoot = function(parent, caption)
 
     frame:SetScript("OnDragStop", function()
         -- load current window config
-        local config = ShaguScan_db.config[this.id]
+        local config = RunAway_db.config[this.id]
 
         -- convert to best anchor depending on position
         local new_anchor = utils.GetBestAnchor(this)
@@ -81,7 +81,7 @@ ui.CreateRoot = function(parent, caption)
     end)
 
     frame.settings.tex = frame.settings:CreateTexture(nil, 'OVERLAY')
-    frame.settings.tex:SetTexture("Interface\\AddOns\\ShaguScan\\img\\config")
+    frame.settings.tex:SetTexture("Interface\\AddOns\\RunAway\\img\\config")
     frame.settings.tex:SetAllPoints()
     frame.settings.tex:SetAlpha(.5)
 
@@ -249,7 +249,7 @@ ui.CreateBar = function(parent, guid, unit_data)
     target_left:SetWidth(8)
     target_left:SetHeight(8)
     target_left:SetPoint("LEFT", frame, "LEFT", -4, 0)
-    target_left:SetTexture("Interface\\AddOns\\ShaguScan\\img\\target-left")
+    target_left:SetTexture("Interface\\AddOns\\RunAway\\img\\target-left")
     target_left:Hide()
     frame.target_left = target_left
 
@@ -257,7 +257,7 @@ ui.CreateBar = function(parent, guid, unit_data)
     target_right:SetWidth(8)
     target_right:SetHeight(8)
     target_right:SetPoint("RIGHT", frame, "RIGHT", 4, 0)
-    target_right:SetTexture("Interface\\AddOns\\ShaguScan\\img\\target-right")
+    target_right:SetTexture("Interface\\AddOns\\RunAway\\img\\target-right")
     target_right:Hide()
     frame.target_right = target_right
 
@@ -305,14 +305,14 @@ ui:SetScript("OnUpdate", function()
 
     -- remove old leftover frames
     for caption, root in pairs(ui.frames) do
-        if not ShaguScan_db.config[caption] then
+        if not RunAway_db.config[caption] then
             ui.frames[caption]:Hide()
             ui.frames[caption] = nil
         end
     end
 
     -- create ui frames based on config values
-    for caption, config in pairs(ShaguScan_db.config) do
+    for caption, config in pairs(RunAway_db.config) do
         -- create root frame if not existing
         ui.frames[caption] = ui.frames[caption] or ui:CreateRoot(caption)
         local root = ui.frames[caption]
@@ -353,7 +353,7 @@ ui:SetScript("OnUpdate", function()
         -- collect visible units with their remaining bandage time
         local visible_units = {}
 
-        for guid, data in pairs(ShaguScan.core.guids) do
+        for guid, data in pairs(RunAway.core.guids) do
             -- apply filters
             local visible = true
             local auraMatched = false
@@ -430,7 +430,7 @@ ui:SetScript("OnUpdate", function()
 
         -- 清理不再被追踪的单位的timer
         for guid in pairs(ui.timers) do
-            if not ShaguScan.core.guids[guid] then
+            if not RunAway.core.guids[guid] then
                 ui.timers[guid] = nil
             end
         end
@@ -499,4 +499,4 @@ ui:SetScript("OnUpdate", function()
     end
 end)
 
-ShaguScan.ui = ui
+RunAway.ui = ui
