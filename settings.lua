@@ -1,401 +1,425 @@
 if RunAway.disabled then return end
 
-local utils = RunAway.utils
-
 local settings = {}
+local templates = RunAway.templates
 
-SLASH_RUNAWAY1 = "/runaway"
-SLASH_RUNAWAY2 = "/ra"
-SlashCmdList["RUNAWAY"] = function(input)
-  local caption = input and input ~= '' and input or "Scanner"
-  settings.OpenConfig(caption)
+-- Minimap button configuration
+local minimapButtonAngle = 225  -- Default position (degrees)
+local minimapButtonRadius = 80
+
+-- Create minimap button
+local minimapButton = CreateFrame("Button", "RunAwayMinimapButton", Minimap)
+minimapButton:SetWidth(32)
+minimapButton:SetHeight(32)
+minimapButton:SetFrameStrata("MEDIUM")
+minimapButton:SetFrameLevel(8)
+minimapButton:EnableMouse(true)
+minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+-- Button textures
+minimapButton:SetNormalTexture("Interface\\Icons\\Ability_Rogue_Sprint")
+minimapButton.icon = minimapButton:GetNormalTexture()
+minimapButton.icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+
+-- Border overlay
+local border = minimapButton:CreateTexture(nil, "OVERLAY")
+border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+border:SetWidth(56)
+border:SetHeight(56)
+border:SetPoint("TOPLEFT", minimapButton, "TOPLEFT", -8, 8)
+minimapButton.border = border
+
+-- Highlight texture
+local highlight = minimapButton:CreateTexture(nil, "HIGHLIGHT")
+highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+highlight:SetAllPoints(minimapButton)
+minimapButton.highlight = highlight
+
+-- Position the button around minimap
+local function UpdateMinimapButtonPosition()
+  local angle = math.rad(minimapButtonAngle)
+  local x = math.cos(angle) * minimapButtonRadius
+  local y = math.sin(angle) * minimapButtonRadius
+  minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
-settings.backdrop = {
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-  tile = true, tileSize = 16, edgeSize = 12,
-  insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
+-- Dragging support for minimap button
+minimapButton:RegisterForDrag("LeftButton")
+minimapButton:SetScript("OnDragStart", function()
+  this.dragging = true
+end)
 
-settings.textborder = {
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-  tile = true, tileSize = 16, edgeSize = 8,
-  insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
+minimapButton:SetScript("OnDragStop", function()
+  this.dragging = false
+end)
 
-settings.CreateLabel = function(parent, text)
-  local label = parent:CreateFontString(nil, 'HIGH', 'GameFontWhite')
-  label:SetFont(STANDARD_TEXT_FONT, 9)
-  label:SetText(text)
-  label:SetHeight(18)
-  return label
-end
+minimapButton:SetScript("OnUpdate", function()
+  if not this.dragging then return end
 
-settings.CreateTextBox = function(parent, text)
-  local textbox = CreateFrame("EditBox", nil, parent)
-  textbox.ShowTooltip = settings.ShowTooltip
+  local mx, my = Minimap:GetCenter()
+  local cx, cy = GetCursorPosition()
+  local scale = UIParent:GetEffectiveScale()
+  cx, cy = cx / scale, cy / scale
 
-  textbox:SetTextColor(1,.8,.2,1)
-  textbox:SetJustifyH("RIGHT")
-  textbox:SetTextInsets(5,5,5,5)
-  textbox:SetBackdrop(settings.textborder)
-  textbox:SetBackdropColor(.1,.1,.1,1)
-  textbox:SetBackdropBorderColor(.2,.2,.2,1)
+  minimapButtonAngle = math.deg(math.atan2(cy - my, cx - mx))
+  UpdateMinimapButtonPosition()
+end)
 
-  textbox:SetHeight(18)
-
-  textbox:SetFontObject(GameFontNormal)
-  textbox:SetFont(STANDARD_TEXT_FONT, 9)
-  textbox:SetAutoFocus(false)
-  textbox:SetText((text or ""))
-
-  textbox:SetScript("OnEscapePressed", function(self)
-    this:ClearFocus()
-  end)
-
-  return textbox
-end
-
-settings.ShowTooltip = function(parent, strings)
-  GameTooltip:SetOwner(parent, "ANCHOR_RIGHT")
-  for id, entry in pairs(strings) do
-    if type(entry) == "table" then
-      GameTooltip:AddDoubleLine(entry[1], entry[2])
-    else
-      GameTooltip:AddLine(entry)
-    end
+-- Tooltip
+minimapButton:SetScript("OnEnter", function()
+  GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+  GameTooltip:AddLine("|cffffcc00RunAway|r")
+  GameTooltip:AddLine("|cffffffffLeft-Click:|r Open settings menu", 1, 1, 1)
+  GameTooltip:AddLine("|cffffffffDrag:|r Move button", 1, 1, 1)
+  if RunAway_db.enabled then
+    GameTooltip:AddLine("|cff00ff00Enabled|r", 1, 1, 1)
+  else
+    GameTooltip:AddLine("|cffff0000Disabled|r", 1, 1, 1)
   end
   GameTooltip:Show()
+end)
+
+minimapButton:SetScript("OnLeave", function()
+  GameTooltip:Hide()
+end)
+
+UpdateMinimapButtonPosition()
+
+-- Dropdown menu system
+local dropdownFrames = {}
+local currentLevel = 0
+
+-- Create a dropdown frame
+local function CreateDropdownFrame(level)
+  local frame = CreateFrame("Frame", "RunAwayDropdown" .. level, UIParent)
+  frame:SetFrameStrata("DIALOG")
+  frame:SetBackdrop(templates.background)
+  frame:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
+
+  local border = CreateFrame("Frame", nil, frame)
+  border:SetBackdrop(templates.border)
+  border:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+  border:SetPoint("TOPLEFT", frame, "TOPLEFT", -2, 2)
+  border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 2, -2)
+  frame.border = border
+
+  frame.buttons = {}
+  frame.level = level
+  frame:Hide()
+
+  return frame
 end
 
-settings.OpenConfig = function(caption)
-  -- Toggle Existing Dialog
-  local existing = getglobal("RunAwayConfigDialog"..caption)
-  if existing then
-    if existing:IsShown() then existing:Hide() else existing:Show() end
-    return
-  end
+-- Create a menu button
+local function CreateMenuButton(parent, index)
+  local button = CreateFrame("Button", nil, parent)
+  button:SetHeight(20)
+  button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+  button:GetHighlightTexture():SetAlpha(0.7)
 
-  -- Create defconfig if new config
-  if not RunAway_db.config[caption] then
-    RunAway_db.config[caption] = {
-      filter = "npc,infight,alive",
-      scale = 1, anchor = "CENTER", x = 0, y = 0, width = 75, height = 12, spacing = 4, maxrow = 20
-    }
-  end
+  local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  text:SetPoint("LEFT", button, "LEFT", 8, 0)
+  text:SetJustifyH("LEFT")
+  button.text = text
 
-  -- Main Dialog
-  local dialog = CreateFrame("Frame", "RunAwayConfigDialog"..caption, UIParent)
-  table.insert(UISpecialFrames, "RunAwayConfigDialog"..caption)
+  -- Arrow for submenus
+  local arrow = button:CreateTexture(nil, "OVERLAY")
+  arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+  arrow:SetWidth(16)
+  arrow:SetHeight(16)
+  arrow:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+  arrow:Hide()
+  button.arrow = arrow
 
-  -- Save Shortcuts
-  local config = RunAway_db.config[caption]
-  local caption = caption
+  -- Checkmark for toggle items
+  local check = button:CreateTexture(nil, "OVERLAY")
+  check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+  check:SetWidth(16)
+  check:SetHeight(16)
+  check:SetPoint("LEFT", button, "LEFT", 4, 0)
+  check:Hide()
+  button.check = check
 
-  dialog:SetFrameStrata("DIALOG")
-  dialog:SetPoint("CENTER", 0, 0)
-  dialog:SetWidth(264)
-  dialog:SetHeight(264)
-
-  dialog:EnableMouse(true)
-  dialog:RegisterForDrag("LeftButton")
-  dialog:SetMovable(true)
-  dialog:SetScript("OnDragStart", function() this:StartMoving() end)
-  dialog:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
-
-  dialog:SetBackdrop(settings.backdrop)
-  dialog:SetBackdropColor(.2, .2, .2, 1)
-  dialog:SetBackdropBorderColor(.2, .2, .2, 1)
-
-  -- Assign functions to dialog
-  dialog.CreateTextBox = settings.CreateTextBox
-  dialog.CreateLabel = settings.CreateLabel
-
-  -- Save & Reload
-  dialog.save = CreateFrame("Button", nil, dialog, "GameMenuButtonTemplate")
-  dialog.save:SetWidth(96)
-  dialog.save:SetHeight(18)
-  dialog.save:SetFont(STANDARD_TEXT_FONT, 10)
-  dialog.save:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -8, 8)
-  dialog.save:SetText("Save")
-  dialog.save:SetScript("OnClick", function()
-    local new_caption = dialog.caption:GetText()
-
-    local filter = dialog.filter:GetText()
-    local width = dialog.width:GetText()
-    local height = dialog.height:GetText()
-    local spacing = dialog.spacing:GetText()
-    local maxrow = dialog.maxrow:GetText()
-    local anchor = dialog.anchor:GetText()
-    local scale = dialog.scale:GetText()
-    local x = dialog.x:GetText()
-    local y = dialog.y:GetText()
-
-    -- build new config
-    local new_config = {
-      filter = filter,
-      width = tonumber(width) or config.width,
-      height = tonumber(height) or config.height,
-      spacing = tonumber(spacing) or config.spacing,
-      maxrow = tonumber(maxrow) or config.maxrow,
-      anchor = utils.IsValidAnchor(anchor) and anchor or config.anchor,
-      scale = tonumber(scale) or config.scale,
-      x = tonumber(x) or config.x,
-      y = tonumber(y) or config.y,
-    }
-
-    RunAway_db.config[caption] = nil
-    RunAway_db.config[new_caption] = new_config
-    this:GetParent():Hide()
-  end)
-
-  -- Delete
-  dialog.delete = CreateFrame("Button", nil, dialog, "GameMenuButtonTemplate")
-  dialog.delete:SetWidth(96)
-  dialog.delete:SetHeight(18)
-  dialog.delete:SetFont(STANDARD_TEXT_FONT, 10)
-  dialog.delete:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 8, 8)
-  dialog.delete:SetText("Delete")
-  dialog.delete:SetScript("OnClick", function()
-    RunAway_db.config[caption] = nil
-    this:GetParent():Hide()
-  end)
-
-  dialog.close = CreateFrame("Button", nil, dialog, "UIPanelCloseButton")
-  dialog.close:SetWidth(20)
-  dialog.close:SetHeight(20)
-  dialog.close:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", 0, 0)
-  dialog.close:SetScript("OnClick", function()
-    this:GetParent():Hide()
-  end)
-
-  -- Caption (Title)
-  dialog.caption = dialog:CreateTextBox(caption)
-  dialog.caption:SetPoint("TOPLEFT", dialog, "TOPLEFT", 8, -18)
-  dialog.caption:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -8, -18)
-  dialog.caption:SetFont(STANDARD_TEXT_FONT, 10)
-  dialog.caption:SetJustifyH("CENTER")
-  dialog.caption:SetHeight(20)
-
-  -- Backdrop
-  local backdrop = CreateFrame("Frame", nil, dialog)
-  backdrop:SetBackdrop(settings.backdrop)
-  backdrop:SetBackdropBorderColor(.2,.2,.2,1)
-  backdrop:SetBackdropColor(.2,.2,.2,1)
-
-  backdrop:SetPoint("TOPLEFT", dialog, "TOPLEFT", 8, -40)
-  backdrop:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -8, 28)
-
-  backdrop.CreateTextBox = settings.CreateTextBox
-  backdrop.CreateLabel = settings.CreateLabel
-
-  backdrop.pos = 8
-
-  -- Filter
-  local caption = backdrop:CreateLabel("Filter:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.filter = backdrop:CreateTextBox(config.filter)
-  dialog.filter:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.filter:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.filter:SetScript("OnEnter", function()
-    dialog.filter:ShowTooltip({
-      "Unit Filters",
-      "|cffaaaaaaA comma separated list of filters.",
-      " ",
-      { "|cffffffffplayer", "Player Characters" },
-      { "|cffffffffnpc", "NPC Units" },
-      { "|cffffffffinfight", "Infight Units" },
-      { "|cffffffffdead", "Dead Units" },
-      { "|cffffffffalive", "Living Units" },
-      { "|cffffffffhorde", "Horde Units" },
-      { "|cffffffffalliance", "Alliance Units" },
-      { "|cffffffffhardcore", "Hardcore Players" },
-      { "|cffffffffpve", "PvE Units" },
-      { "|cffffffffpvp", "PvP Enabled Units" },
-      { "|cfffffffficon", "Units With Raid Icons" },
-      " ",
-      "|cffffffffA complete list of filters can be found in the README."
-    })
-  end)
-
-  dialog.filter:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Spacer
-  backdrop.pos = backdrop.pos + 9
-
-  -- Width
-  local caption = backdrop:CreateLabel("Width:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.width = backdrop:CreateTextBox(config.width)
-  dialog.width:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.width:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.width:SetScript("OnEnter", function()
-    dialog.width:ShowTooltip({
-      "Health Bar Width",
-      "|cffaaaaaaAn Integer Value in Pixels"
-    })
-  end)
-
-  dialog.width:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-  backdrop.pos = backdrop.pos + 18
-
-  -- Height
-  local caption = backdrop:CreateLabel("Height:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.height = backdrop:CreateTextBox(config.height)
-  dialog.height:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.height:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.height:SetScript("OnEnter", function()
-    dialog.height:ShowTooltip({
-      "Health Bar Height",
-      "|cffaaaaaaAn Integer Value in Pixels"
-    })
-  end)
-
-  dialog.height:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Spacing
-  local caption = backdrop:CreateLabel("Spacing:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.spacing = backdrop:CreateTextBox(config.spacing)
-  dialog.spacing:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.spacing:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.spacing:SetScript("OnEnter", function()
-    dialog.spacing:ShowTooltip({
-      "Spacing Between Health Bars",
-      "|cffaaaaaaAn Integer Value in Pixels"
-    })
-  end)
-
-  dialog.spacing:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Max per Row
-  local caption = backdrop:CreateLabel("Max-Row:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.maxrow = backdrop:CreateTextBox(config.maxrow)
-  dialog.maxrow:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.maxrow:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.maxrow:SetScript("OnEnter", function()
-    dialog.maxrow:ShowTooltip({
-      "Maximum Entries Per Column",
-      "|cffaaaaaaA new column will be created once exceeded"
-    })
-  end)
-
-  dialog.maxrow:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Spacer
-  backdrop.pos = backdrop.pos + 9
-
-  -- Anchor
-  local caption = backdrop:CreateLabel("Anchor:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.anchor = backdrop:CreateTextBox(config.anchor)
-  dialog.anchor:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.anchor:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.anchor:SetScript("OnEnter", function()
-    dialog.anchor:ShowTooltip({
-      "Window Anchor",
-      "|cffaaaaaaThe Anchor From Where Positions Are Calculated.",
-      " ",
-      {"TOP", "TOPLEFT"},
-      {"TOPRIGHT", "CENTER"},
-      {"LEFT", "RIGHT"},
-      {"BOTTOM", "BOTTOMLEFT"},
-      {"BOTTOMRIGHT", ""}
-    })
-  end)
-
-  dialog.anchor:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Scale
-  local caption = backdrop:CreateLabel("Scale:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.scale = backdrop:CreateTextBox(utils.round(config.scale, 2))
-  dialog.scale:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.scale:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.scale:SetScript("OnEnter", function()
-    dialog.scale:ShowTooltip({
-      "Window Scale",
-      "|cffaaaaaaA floating point number, 1 equals 100%"
-    })
-  end)
-
-  dialog.scale:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Position-X
-  local caption = backdrop:CreateLabel("X-Position:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.x = backdrop:CreateTextBox(utils.round(config.x, 2))
-  dialog.x:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.x:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.x:SetScript("OnEnter", function()
-    dialog.x:ShowTooltip({
-      "X-Position of Window",
-      "|cffaaaaaaA Number in Pixels"
-    })
-  end)
-
-  dialog.x:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-
-  backdrop.pos = backdrop.pos + 18
-
-  -- Position-Y
-  local caption = backdrop:CreateLabel("Y-Position:")
-  caption:SetPoint("TOPLEFT", backdrop, 10, -backdrop.pos)
-
-  dialog.y = backdrop:CreateTextBox(utils.round(config.y, 2))
-  dialog.y:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 60, -backdrop.pos)
-  dialog.y:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -8, -backdrop.pos)
-  dialog.y:SetScript("OnEnter", function()
-    dialog.y:ShowTooltip({
-      "Y-Position of Window",
-      "|cffaaaaaaA Number in Pixels"
-    })
-  end)
-
-  dialog.y:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-  backdrop.pos = backdrop.pos + 18
+  return button
 end
+
+-- Hide all dropdowns at or above a level
+local function HideDropdownsAbove(level)
+  for i = level, 10 do
+    if dropdownFrames[i] then
+      dropdownFrames[i]:Hide()
+    end
+  end
+end
+
+-- Hide all dropdowns
+local function HideAllDropdowns()
+  HideDropdownsAbove(1)
+  currentLevel = 0
+end
+
+-- Build and show a dropdown menu
+local function ShowDropdownMenu(menuData, level, anchorFrame, anchorPoint, relativePoint, xOffset, yOffset)
+  -- Create frame if needed
+  if not dropdownFrames[level] then
+    dropdownFrames[level] = CreateDropdownFrame(level)
+  end
+
+  local frame = dropdownFrames[level]
+
+  -- Hide higher level menus
+  HideDropdownsAbove(level + 1)
+
+  -- Clear existing buttons
+  for _, btn in pairs(frame.buttons) do
+    btn:Hide()
+  end
+
+  -- Calculate dimensions
+  local buttonCount = table.getn(menuData)
+  local buttonWidth = 150
+  local buttonHeight = 20
+  local padding = 4
+
+  frame:SetWidth(buttonWidth + padding * 2)
+  frame:SetHeight(buttonCount * buttonHeight + padding * 2)
+
+  -- Create buttons
+  for i, item in ipairs(menuData) do
+    if not frame.buttons[i] then
+      frame.buttons[i] = CreateMenuButton(frame, i)
+    end
+
+    local button = frame.buttons[i]
+    button:SetWidth(buttonWidth)
+    button:SetPoint("TOPLEFT", frame, "TOPLEFT", padding, -padding - (i - 1) * buttonHeight)
+
+    -- Reset button state
+    button.text:SetPoint("LEFT", button, "LEFT", 8, 0)
+    button.arrow:Hide()
+    button.check:Hide()
+
+    -- Set text with color
+    if item.disabled then
+      button.text:SetTextColor(0.5, 0.5, 0.5)
+    elseif item.isTitle then
+      button.text:SetTextColor(1, 0.8, 0, 1)
+    else
+      button.text:SetTextColor(1, 1, 1, 1)
+    end
+    button.text:SetText(item.text)
+
+    -- Show checkmark for checked items
+    if item.checked then
+      button.check:Show()
+      button.text:SetPoint("LEFT", button, "LEFT", 22, 0)
+    end
+
+    -- Show arrow for submenus
+    if item.hasSubmenu then
+      button.arrow:Show()
+    end
+
+    -- Click handler
+    button:SetScript("OnClick", function()
+      if item.disabled then return end
+
+      if item.func then
+        item.func()
+        if not item.keepOpen then
+          HideAllDropdowns()
+        end
+      end
+    end)
+
+    -- Hover handler for submenus
+    button:SetScript("OnEnter", function()
+      if item.hasSubmenu and item.submenuFunc then
+        local submenuData = item.submenuFunc()
+        ShowDropdownMenu(submenuData, level + 1, button, "TOPRIGHT", "TOPLEFT", 0, 0)
+      else
+        HideDropdownsAbove(level + 1)
+      end
+    end)
+
+    button:Show()
+  end
+
+  -- Position and show frame
+  frame:ClearAllPoints()
+  if anchorFrame then
+    frame:SetPoint(anchorPoint or "TOPLEFT", anchorFrame, relativePoint or "BOTTOMLEFT", xOffset or 0, yOffset or 0)
+  else
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  end
+
+  frame:Show()
+  currentLevel = level
+end
+
+-- Build aura submenu for a boss
+local function BuildAuraSubmenu(bossName)
+  local layout = RunAway_db.bossLayouts[bossName]
+  if not layout or not layout.columns then
+    return {{ text = "No auras configured", disabled = true }}
+  end
+
+  local menuData = {}
+  for _, column in ipairs(layout.columns) do
+    -- Default to enabled if not set
+    if column.enabled == nil then
+      column.enabled = true
+    end
+
+    local displayText = column.title
+    if not column.enabled then
+      displayText = "|cff888888" .. column.title .. "|r"
+    end
+
+    table.insert(menuData, {
+      text = displayText,
+      checked = column.enabled,
+      keepOpen = true,  -- Keep menu open after clicking
+      func = function()
+        -- Toggle the enabled state
+        column.enabled = not column.enabled
+        if column.enabled then
+          DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00RunAway:|r " .. bossName .. " - " .. column.title .. " |cff00ff00Enabled|r")
+        else
+          DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00RunAway:|r " .. bossName .. " - " .. column.title .. " |cffff0000Disabled|r")
+        end
+      end
+    })
+  end
+
+  return menuData
+end
+
+-- Build boss submenu for a raid
+local function BuildBossSubmenu(raidName)
+  local raid = RunAway_db.raids[raidName]
+  if not raid or not raid.bosses then
+    return {{ text = "No bosses configured", disabled = true }}
+  end
+
+  local menuData = {}
+  for _, bossName in ipairs(raid.bosses) do
+    table.insert(menuData, {
+      text = bossName,
+      hasSubmenu = true,
+      submenuFunc = function()
+        return BuildAuraSubmenu(bossName)
+      end
+    })
+  end
+
+  return menuData
+end
+
+-- Build main menu
+local function BuildMainMenu()
+  local menuData = {}
+
+  -- Enable/Disable toggle
+  table.insert(menuData, {
+    text = RunAway_db.enabled and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r",
+    checked = RunAway_db.enabled,
+    func = function()
+      RunAway_db.enabled = not RunAway_db.enabled
+      if RunAway_db.enabled then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00RunAway:|r |cff00ff00Enabled|r")
+      else
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00RunAway:|r |cffff0000Disabled|r")
+        -- Reset UI when disabled
+        if RunAway.core then
+          RunAway.core.ResetStatus()
+        end
+      end
+    end
+  })
+
+  -- Separator
+  table.insert(menuData, {
+    text = "──────────",
+    disabled = true,
+    isTitle = true
+  })
+
+  -- Raids
+  -- Sort raids by order
+  local sortedRaids = {}
+  for raidName, raidData in pairs(RunAway_db.raids) do
+    table.insert(sortedRaids, { name = raidName, order = raidData.order or 999 })
+  end
+  table.sort(sortedRaids, function(a, b) return a.order < b.order end)
+
+  for _, raid in ipairs(sortedRaids) do
+    table.insert(menuData, {
+      text = raid.name,
+      hasSubmenu = true,
+      submenuFunc = function()
+        return BuildBossSubmenu(raid.name)
+      end
+    })
+  end
+
+  return menuData
+end
+
+-- Minimap button click handler
+minimapButton:SetScript("OnClick", function()
+  if arg1 == "LeftButton" then
+    if currentLevel > 0 then
+      HideAllDropdowns()
+    else
+      local menuData = BuildMainMenu()
+      ShowDropdownMenu(menuData, 1, minimapButton, "TOPLEFT", "BOTTOMLEFT", 0, -4)
+    end
+  end
+end)
+
+-- Close dropdowns when clicking elsewhere
+local closeFrame = CreateFrame("Frame", nil, UIParent)
+closeFrame:SetAllPoints()
+closeFrame:SetFrameStrata("BACKGROUND")
+closeFrame:EnableMouse(false)
+closeFrame:SetScript("OnUpdate", function()
+  if currentLevel > 0 and not MouseIsOver(minimapButton) then
+    local mouseOverMenu = false
+    for i = 1, currentLevel do
+      if dropdownFrames[i] and MouseIsOver(dropdownFrames[i]) then
+        mouseOverMenu = true
+        break
+      end
+    end
+
+    if not mouseOverMenu and IsMouseButtonDown("LeftButton") then
+      -- Check if click is outside all menus
+      local clickedOutside = true
+      for i = 1, currentLevel do
+        if dropdownFrames[i] and MouseIsOver(dropdownFrames[i]) then
+          clickedOutside = false
+          break
+        end
+      end
+      if clickedOutside and not MouseIsOver(minimapButton) then
+        HideAllDropdowns()
+      end
+    end
+  end
+end)
+
+-- Also close on Escape
+local escapeFrame = CreateFrame("Frame", "RunAwayEscapeHandler", UIParent)
+escapeFrame:EnableKeyboard(true)
+escapeFrame:SetPropagateKeyboardInput(true)
+escapeFrame:SetScript("OnKeyDown", function()
+  if arg1 == "ESCAPE" and currentLevel > 0 then
+    HideAllDropdowns()
+    this:SetPropagateKeyboardInput(false)
+  else
+    this:SetPropagateKeyboardInput(true)
+  end
+end)
 
 RunAway.settings = settings

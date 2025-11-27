@@ -4,6 +4,7 @@ end
 
 local utils = {}
 
+-- String split utility
 utils.strsplit = function(delimiter, subject)
     if not subject then
         return nil
@@ -14,113 +15,6 @@ utils.strsplit = function(delimiter, subject)
         fields[table.getn(fields) + 1] = c
     end)
     return unpack(fields)
-end
-
-utils.round = function(input, places)
-    if not places then
-        places = 0
-    end
-    if type(input) == "number" and type(places) == "number" then
-        local pow = 1
-        for i = 1, places do
-            pow = pow * 10
-        end
-        return floor(input * pow + 0.5) / pow
-    end
-end
-
-utils.IsValidAnchor = function(anchor)
-    if anchor == "TOP" then
-        return true
-    end
-    if anchor == "TOPLEFT" then
-        return true
-    end
-    if anchor == "TOPRIGHT" then
-        return true
-    end
-    if anchor == "CENTER" then
-        return true
-    end
-    if anchor == "LEFT" then
-        return true
-    end
-    if anchor == "RIGHT" then
-        return true
-    end
-    if anchor == "BOTTOM" then
-        return true
-    end
-    if anchor == "BOTTOMLEFT" then
-        return true
-    end
-    if anchor == "BOTTOMRIGHT" then
-        return true
-    end
-    return false
-end
-
-utils.GetBestAnchor = function(self)
-    local scale = self:GetScale()
-    local x, y = self:GetCenter()
-    local a = GetScreenWidth() / scale / 3
-    local b = GetScreenWidth() / scale / 3 * 2
-    local c = GetScreenHeight() / scale / 3 * 2
-    local d = GetScreenHeight() / scale / 3
-    if not x or not y then
-        return
-    end
-
-    if x < a and y > c then
-        return "TOPLEFT"
-    elseif x > a and x < b and y > c then
-        return "TOP"
-    elseif x > b and y > c then
-        return "TOPRIGHT"
-    elseif x < a and y > d and y < c then
-        return "LEFT"
-    elseif x > a and x < b and y > d and y < c then
-        return "CENTER"
-    elseif x > b and y > d and y < c then
-        return "RIGHT"
-    elseif x < a and y < d then
-        return "BOTTOMLEFT"
-    elseif x > a and x < b and y < d then
-        return "BOTTOM"
-    elseif x > b and y < d then
-        return "BOTTOMRIGHT"
-    end
-end
-
-utils.ConvertFrameAnchor = function(self, anchor)
-    local scale, x, y, _ = self:GetScale(), nil, nil, nil
-
-    if anchor == "CENTER" then
-        x, y = self:GetCenter()
-        x, y = x - GetScreenWidth() / 2 / scale, y - GetScreenHeight() / 2 / scale
-    elseif anchor == "TOPLEFT" then
-        x, y = self:GetLeft(), self:GetTop() - GetScreenHeight() / scale
-    elseif anchor == "TOP" then
-        x, _ = self:GetCenter()
-        x, y = x - GetScreenWidth() / 2 / scale, self:GetTop() - GetScreenHeight() / scale
-    elseif anchor == "TOPRIGHT" then
-        x, y = self:GetRight() - GetScreenWidth() / scale, self:GetTop() - GetScreenHeight() / scale
-    elseif anchor == "RIGHT" then
-        _, y = self:GetCenter()
-        x, y = self:GetRight() - GetScreenWidth() / scale, y - GetScreenHeight() / 2 / scale
-    elseif anchor == "BOTTOMRIGHT" then
-        x, y = self:GetRight() - GetScreenWidth() / scale, self:GetBottom()
-    elseif anchor == "BOTTOM" then
-        x, _ = self:GetCenter()
-        x, y = x - GetScreenWidth() / 2 / scale, self:GetBottom()
-    elseif anchor == "BOTTOMLEFT" then
-        x, y = self:GetLeft(), self:GetBottom()
-    elseif anchor == "LEFT" then
-        _, y = self:GetCenter()
-        x, y = self:GetLeft(), y - GetScreenHeight() / 2 / scale
-    end
-
-    return anchor, utils.round(x, 2), utils.round(y, 2)
 end
 
 local _r, _g, _b, _a
@@ -236,61 +130,28 @@ utils.GetDistance = function(unit)
     return distance, distanceValue
 end
 
-utils.auraIconMap = {
-    ["watershield"] = "Interface\\Icons\\Ability_Shaman_WaterShield",
-    ["bandage"] = "Interface\\Icons\\INV_Misc_Bandage_08",
-    ["arcaneoverload"] = "Interface\\Icons\\INV_Misc_Bomb_04",
-    ["arcanedampening"] = "Interface\\Icons\\Spell_Nature_AbolishMagic",
-}
-
-utils.auraDurationMap = {
-    ["Interface\\Icons\\Ability_Shaman_WaterShield"] = 10,
-    ["Interface\\Icons\\INV_Misc_Bandage_08"] = 60,
-    ["Interface\\Icons\\INV_Misc_Bomb_04"] = 15,
-    ["Interface\\Icons\\Spell_Nature_AbolishMagic"] = 45,
-}
-
---local icon = {
---	arcaneOverload = "INV_Misc_Bomb_04",
---	arcanePrison = "Spell_Frost_Glacier",
---	manaboundStrike = "Spell_Arcane_FocusedPower",
---	manaboundExpire = "Spell_Holy_FlashHeal",
---	arcaneDampening = "Spell_Nature_AbolishMagic", -- icon for Arcane Dampening
---}
-
-utils.CheckAura = function(unit, aura)
-
-    -- search aura from auraDurationMap. if aura exists on this unit, return true and the total duration
-
-    if not aura then
+-- Check if unit has a specific aura, returns (exists, duration)
+utils.CheckAura = function(unit, auraId)
+    if not auraId then
         return false, 0
     end
 
-    if not utils.auraIconMap[aura] then
+    local auraData = RunAway_db.auras and RunAway_db.auras[auraId]
+    if not auraData then
         return false, 0
     end
 
-    local target = utils.auraIconMap[aura]
+    local targetIcon = auraData.icon
 
-    -- Check debuffs first
+    -- Check debuffs
     local i = 1
     while UnitDebuff(unit, i) do
         local buffIcon = UnitDebuff(unit, i)
-        if buffIcon == target and utils.auraDurationMap[buffIcon] then
-            return true, utils.auraDurationMap[buffIcon]
+        if buffIcon == targetIcon then
+            return true, auraData.duration
         end
         i = i + 1
     end
-
-    ---- Then check buffs
-    --i = 1
-    --while UnitBuff(unit, i) do
-    --    local buffIcon = UnitBuff(unit, i)
-    --    if buffIcon == target and utils.auraDurationMap[buffIcon] then
-    --        return true, utils.auraDurationMap[buffIcon]
-    --    end
-    --    i = i + 1
-    --end
 
     return false, 0
 end

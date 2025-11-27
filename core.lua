@@ -10,24 +10,39 @@ core.guids = {}
 core.isBossCombat = false
 core.currentBosses = {}
 
--- Boss names (configurable list)
-core.bossNames = {
-    ["老杂斑野猪"] = true,
-    ["阿诺玛鲁斯"] = true,
-}
+-- Check if a boss has any enabled columns
+core.HasEnabledColumns = function(bossName)
+    local layout = RunAway_db.bossLayouts and RunAway_db.bossLayouts[bossName]
+    if not layout or not layout.columns then
+        return false
+    end
 
--- Check if a unit is a boss
+    for _, column in ipairs(layout.columns) do
+        -- Default to enabled if not set
+        if column.enabled == nil or column.enabled == true then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Check if a unit is a boss (derives from bossLayouts config)
+-- Returns false if all columns are disabled for this boss
 core.IsBossUnit = function(unit)
     if not UnitExists(unit) then
         return false
     end
 
-    -- Check by name
     local unitName = UnitName(unit)
-    if unitName and core.bossNames[unitName] then
-        return true
+    if unitName and RunAway_db.bossLayouts and RunAway_db.bossLayouts[unitName] then
+        -- Check if any columns are enabled for this boss
+        if core.HasEnabledColumns(unitName) then
+            return true
+        end
     end
 
+    return false
 end
 
 -- Reset all status for boss combat and UI
@@ -76,6 +91,11 @@ core.ResetStatus = function()
 end
 
 core.add = function(unit)
+    -- Skip if addon is disabled
+    if not RunAway_db.enabled then
+        return
+    end
+
     local exists, guid = UnitExists(unit)
     if not exists or not guid then
         if core.guids[guid] then
