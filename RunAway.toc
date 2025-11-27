@@ -1,7 +1,7 @@
 ## Interface: 11200
-## Title: |cffffcc00Run|cffffffffAway
-## Author: Shagu
-## Notes: Uses SuperWoW GUIDs to show nearby units
+## Title: |cffffcc00快|cffffffff跑！
+## Author: Theo
+## Notes: 监控部分boss战斗中团队队员的状态栏, 方便团长喊快跑.
 ## Version: 1.0
 ## SavedVariablesPerCharacter: RunAway_db
 

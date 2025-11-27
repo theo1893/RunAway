@@ -61,6 +61,9 @@ core.ResetStatus = function()
         -- Clear UI timers
         RunAway.ui.timers = {}
 
+        -- Reset current boss name so title updates on next encounter
+        RunAway.ui.currentBossName = nil
+
         -- Clear root frame completely (not just hide)
         if RunAway.ui.rootFrame then
             -- Hide the frame first
@@ -124,9 +127,16 @@ core.add = function(unit)
             core.ResetStatus()
             return
         else
-            -- Boss is alive - enter boss combat mode
+            -- Only enter boss combat if player is also in combat
+            -- This prevents monitor from starting when teammates fight boss but player is far away
+            if not core.isBossCombat and not UnitAffectingCombat("player") then
+                return
+            end
+            -- Boss is alive and player is in combat - enter boss combat mode
             core.isBossCombat = true
-            core.currentBosses[guid] = true
+            -- Store both the GUID and boss name for reliable retrieval later
+            local bossName = UnitName(unit)
+            core.currentBosses[guid] = bossName or true
         end
     end
 
@@ -161,6 +171,66 @@ core:SetScript("OnEvent", function()
     else
         this.add(arg1)
     end
+end)
+
+-- Debug output frame
+local debugFrame = CreateFrame("Frame")
+local debugLastUpdate = 0
+local debugInterval = 1  -- Output every 1 second
+
+-- Count table entries
+local function CountTable(t)
+    local count = 0
+    if t then
+        for _ in pairs(t) do
+            count = count + 1
+        end
+    end
+    return count
+end
+
+-- Get boss names from currentBosses
+local function GetBossNames()
+    local names = {}
+    for guid, nameOrActive in pairs(core.currentBosses) do
+        if nameOrActive then
+            if type(nameOrActive) == "string" then
+                table.insert(names, nameOrActive)
+            else
+                table.insert(names, "Unknown")
+            end
+        end
+    end
+    if table.getn(names) == 0 then
+        return "无"
+    end
+    return table.concat(names, ", ")
+end
+
+debugFrame:SetScript("OnUpdate", function()
+    if not RunAway_db or not RunAway_db.debug then
+        return
+    end
+
+    local now = GetTime()
+    if now - debugLastUpdate < debugInterval then
+        return
+    end
+    debugLastUpdate = now
+
+    -- Build debug output
+    local guidsCount = CountTable(core.guids)
+    local bossCount = CountTable(core.currentBosses)
+    local inCombat = UnitAffectingCombat("player") and "是" or "否"
+    local bossNames = GetBossNames()
+
+    DEFAULT_CHAT_FRAME:AddMessage(string.format(
+        "|cffffcc00[快跑！调试]|r 玩家战斗:%s | Boss战斗:%s | 追踪单位:%d | Boss:%s",
+        inCombat,
+        core.isBossCombat and "|cff00ff00是|r" or "|cffff0000否|r",
+        guidsCount,
+        bossNames
+    ))
 end)
 
 RunAway.core = core

@@ -19,10 +19,20 @@ ui.GetCurrentBoss = function()
         return nil
     end
 
-    for guid, active in pairs(RunAway.core.currentBosses) do
-        if active and UnitExists(guid) then
-            local bossName = UnitName(guid)
-            if RunAway_db.bossLayouts[bossName] then
+    for guid, bossNameOrActive in pairs(RunAway.core.currentBosses) do
+        -- bossNameOrActive is either the boss name (string) or true (legacy/fallback)
+        if bossNameOrActive then
+            local bossName = nil
+
+            -- If stored value is a string, use it directly
+            if type(bossNameOrActive) == "string" then
+                bossName = bossNameOrActive
+            -- Otherwise try to query the unit (fallback)
+            elseif UnitExists(guid) then
+                bossName = UnitName(guid)
+            end
+
+            if bossName and RunAway_db.bossLayouts[bossName] then
                 return bossName
             end
         end
@@ -484,6 +494,13 @@ ui:SetScript("OnUpdate", function()
 
     -- If not in boss combat, hide everything
     if not isBossCombat then
+        RunAway.core.ResetStatus()
+        return
+    end
+
+    -- If player left combat (but not dead), stop the monitor
+    -- Keep monitor running if player is dead (combat still ongoing for raid)
+    if not UnitAffectingCombat("player") and not UnitIsDead("player") then
         RunAway.core.ResetStatus()
         return
     end
