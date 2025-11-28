@@ -99,13 +99,22 @@ utils.GetLevelString = function(unitstr)
     return level
 end
 
+-- Cache the UnitXP API check (only check once)
+local hasUnitXPDistance = nil
+
 utils.GetDistance = function(unit)
-    if pcall(UnitXP, "nop", "nop") then
-        if not UnitXP("distanceBetween", "player", unit) then
+    -- Check UnitXP availability once and cache result
+    if hasUnitXPDistance == nil then
+        hasUnitXPDistance = pcall(UnitXP, "nop", "nop")
+    end
+
+    local distance, distanceValue
+    if hasUnitXPDistance then
+        local rawDistance = UnitXP("distanceBetween", "player", unit)
+        if not rawDistance then
             distance = "∞" -- 无法计算时显示无限远
             distanceValue = math.huge -- 无限大值用于判断
         else
-            local rawDistance = UnitXP("distanceBetween", "player", unit)
             distance = string.format("%.1f", rawDistance)
             distanceValue = rawDistance -- 保存原始数值用于判断
         end

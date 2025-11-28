@@ -12,6 +12,8 @@ local templates = RunAway.templates
 ui.rootFrame = nil
 ui.currentBossName = nil  -- Track current boss to detect changes
 ui.timers = {}
+ui.lastSortUpdate = 0  -- Throttle sorting/layout updates
+ui.sortUpdateInterval = 0.2  -- Update sorting every 0.2 seconds
 
 -- Get current boss name from detected bosses
 ui.GetCurrentBoss = function()
@@ -369,11 +371,12 @@ ui.ProcessColumnUnits = function(columnConfig)
 
     -- Go through all tracked units
     for guid, data in pairs(RunAway.core.guids) do
-        -- Clean up this column's aura timer if unit doesn't have it anymore
+        -- Cache aura check result to avoid duplicate calls
+        local auraExists, auraDuration = false, 0
         if checking_aura_id and UnitExists(guid) then
-            local exist = utils.CheckAura(guid, checking_aura_id)
-            -- aura已经消失
-            if not exist and ui.timers[guid] and ui.timers[guid][checking_aura_id] then
+            auraExists, auraDuration = utils.CheckAura(guid, checking_aura_id)
+            -- Clean up timer if aura has disappeared
+            if not auraExists and ui.timers[guid] and ui.timers[guid][checking_aura_id] then
                 ui.timers[guid][checking_aura_id] = nil
                 -- Clean up empty guid entry
                 local has_timers = false
@@ -407,10 +410,11 @@ ui.ProcessColumnUnits = function(columnConfig)
         if UnitExists(guid) and should_display then
             local remaining_time = 0
 
-            -- If aura matched, calculate remaining time
+            -- If aura matched, calculate remaining time (reuse cached aura check)
             if auraMatched and matched_aura_id then
                 local current_time = GetTime()
-                local exist, total_duration = utils.CheckAura(guid, matched_aura_id)
+                -- Reuse the cached aura check result instead of calling CheckAura again
+                local exist, total_duration = auraExists, auraDuration
 
                 if exist then
                     -- Initialize timer tracking
@@ -463,8 +467,10 @@ ui.ProcessColumnUnits = function(columnConfig)
                 return a.guid < b.guid  -- Fallback to guid sort
             end
 
-            -- Primary sort by configured key
-            if aVal ~= bVal then
+            -- Primary sort by configured key (use tolerance for stable sorting)
+            local tolerance = 0.1  -- Treat values within 0.1 as equal to prevent flickering
+            local diff = aVal - bVal
+            if math.abs(diff) > tolerance then
                 if sortAsc then
                     return aVal < bVal
                 else
@@ -482,6 +488,13 @@ end
 -- Main update loop
 ui:SetAllPoints()
 ui:SetScript("OnUpdate", function()
+    -- Throttle the entire update loop (bars have their own OnUpdate for health)
+    local currentTime = GetTime()
+    if (currentTime - ui.lastSortUpdate) < ui.sortUpdateInterval then
+        return
+    end
+    ui.lastSortUpdate = currentTime
+
     -- Check if addon is enabled
     if not RunAway_db.enabled then
         if ui.rootFrame then
@@ -546,7 +559,7 @@ ui:SetScript("OnUpdate", function()
         return
     end
 
-    -- Process each column
+    -- Process each column (throttling is done at the start of OnUpdate)
     local totalWidth = 0
     local maxHeight = 0
     local titleHeight = 20
