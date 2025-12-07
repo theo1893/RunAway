@@ -1,6 +1,24 @@
 if RunAway.disabled then
     return
 end
+
+-- ============================================================================
+-- Performance: Cache global functions locally
+-- ============================================================================
+local pairs = pairs
+local type = type
+local tinsert = table.insert
+local tconcat = table.concat
+local getn = table.getn
+local format = string.format
+
+-- Cache WoW API functions
+local UnitExists = UnitExists
+local UnitName = UnitName
+local UnitIsDead = UnitIsDead
+local UnitAffectingCombat = UnitAffectingCombat
+local GetTime = GetTime
+
 local utils = RunAway.utils
 local core = CreateFrame("Frame", nil, WorldFrame)
 
@@ -55,6 +73,9 @@ core.ResetStatus = function()
     for guid in pairs(core.currentBosses) do
         core.currentBosses[guid] = false
     end
+
+    -- Reset arcane overload history for new encounter
+    utils.ResetArcaneOverloadHistory()
 
     -- UI status reset
     if RunAway.ui then
@@ -178,13 +199,12 @@ local debugFrame = CreateFrame("Frame")
 local debugLastUpdate = 0
 local debugInterval = 1  -- Output every 1 second
 
--- Count table entries
+-- Count table entries (local optimized version)
 local function CountTable(t)
+    if not t then return 0 end
     local count = 0
-    if t then
-        for _ in pairs(t) do
-            count = count + 1
-        end
+    for _ in pairs(t) do
+        count = count + 1
     end
     return count
 end
@@ -192,23 +212,31 @@ end
 -- Get boss names from currentBosses
 local function GetBossNames()
     local names = {}
+    local n = 0
     for guid, nameOrActive in pairs(core.currentBosses) do
         if nameOrActive then
+            n = n + 1
             if type(nameOrActive) == "string" then
-                table.insert(names, nameOrActive)
+                names[n] = nameOrActive
             else
-                table.insert(names, "Unknown")
+                names[n] = "Unknown"
             end
         end
     end
-    if table.getn(names) == 0 then
+    if n == 0 then
         return "无"
     end
-    return table.concat(names, ", ")
+    return tconcat(names, ", ")
 end
 
+-- Pre-defined strings for debug output
+local DEBUG_YES = "|cff00ff00是|r"
+local DEBUG_NO = "|cffff0000否|r"
+
 debugFrame:SetScript("OnUpdate", function()
-    if not RunAway_db or not RunAway_db.debug then
+    -- Early exit if debug is disabled (most common case)
+    local db = RunAway_db
+    if not db or not db.debug then
         return
     end
 
@@ -220,14 +248,13 @@ debugFrame:SetScript("OnUpdate", function()
 
     -- Build debug output
     local guidsCount = CountTable(core.guids)
-    local bossCount = CountTable(core.currentBosses)
     local inCombat = UnitAffectingCombat("player") and "是" or "否"
     local bossNames = GetBossNames()
 
-    DEFAULT_CHAT_FRAME:AddMessage(string.format(
+    DEFAULT_CHAT_FRAME:AddMessage(format(
         "|cffffcc00[快跑！调试]|r 玩家战斗:%s | Boss战斗:%s | 追踪单位:%d | Boss:%s",
         inCombat,
-        core.isBossCombat and "|cff00ff00是|r" or "|cffff0000否|r",
+        core.isBossCombat and DEBUG_YES or DEBUG_NO,
         guidsCount,
         bossNames
     ))

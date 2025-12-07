@@ -5,6 +5,30 @@ end
 local utils = RunAway.utils
 local filter = RunAway.filter
 
+-- ============================================================================
+-- Performance: Cache global functions locally
+-- ============================================================================
+local pairs = pairs
+local ipairs = ipairs
+local type = type
+local abs = math.abs
+local max = math.max
+local format = string.format
+local tinsert = table.insert
+local tsort = table.sort
+
+-- Cache WoW API functions used in hot paths
+local UnitExists = UnitExists
+local UnitHealth = UnitHealth
+local UnitHealthMax = UnitHealthMax
+local UnitName = UnitName
+local UnitIsUnit = UnitIsUnit
+local UnitAffectingCombat = UnitAffectingCombat
+local UnitIsDead = UnitIsDead
+local GetTime = GetTime
+local GetRaidTargetIndex = GetRaidTargetIndex
+local SetRaidTargetIconTexture = SetRaidTargetIconTexture
+
 local ui = CreateFrame("Frame", nil, UIParent)
 local templates = RunAway.templates
 
@@ -276,70 +300,89 @@ ui.BarLeave = function()
     GameTooltip:Hide()
 end
 
+-- Pre-defined color strings for distance (avoids string creation in hot path)
+local DIST_COLOR_GREY = "|cff888888"
+local DIST_COLOR_RED = "|cffff0000"
+local DIST_COLOR_ORANGE = "|cffff9900"
+local DIST_COLOR_YELLOW = "|cffffff00"
+local DIST_COLOR_CYAN = "|cff00ffff"
+local DIST_COLOR_GREEN = "|cff00ff00"
+
 ui.BarUpdate = function()
-    if not UnitExists(this.guid) then
+    local guid = this.guid
+    if not UnitExists(guid) then
         return
     end
 
+    local bar = this.bar
+
     -- Update statusbar values
-    this.bar:SetMinMaxValues(0, UnitHealthMax(this.guid))
-    this.bar:SetValue(UnitHealth(this.guid))
+    bar:SetMinMaxValues(0, UnitHealthMax(guid))
+    bar:SetValue(UnitHealth(guid))
 
     -- Update health bar color
-    local hex, r, g, b, a = utils.GetUnitColor(this.guid)
-    this.bar:SetStatusBarColor(r, g, b, a)
+    local _, r, g, b = utils.GetUnitColor(guid)
+    bar:SetStatusBarColor(r, g, b, 1)
 
     -- Update caption text
-    local level = utils.GetLevelString(this.guid)
-    local level_color = utils.GetLevelColor(this.guid)
-    local name = UnitName(this.guid)
+    local level = utils.GetLevelString(guid)
+    local level_color = utils.GetLevelColor(guid)
+    local name = UnitName(guid)
     this.text:SetText(level_color .. level .. "|r " .. name)
 
     -- Show raid icon if existing
-    if GetRaidTargetIndex(this.guid) then
-        SetRaidTargetIconTexture(this.icon, GetRaidTargetIndex(this.guid))
-        this.icon:Show()
+    local raidIndex = GetRaidTargetIndex(guid)
+    local icon = this.icon
+    if raidIndex then
+        SetRaidTargetIconTexture(icon, raidIndex)
+        icon:Show()
     else
-        this.icon:Hide()
+        icon:Hide()
     end
 
     -- Update target indicator
-    if UnitIsUnit("target", this.guid) then
-        this.target_left:Show()
-        this.target_right:Show()
+    local isTarget = UnitIsUnit("target", guid)
+    local tl, tr = this.target_left, this.target_right
+    if isTarget then
+        tl:Show()
+        tr:Show()
     else
-        this.target_left:Hide()
-        this.target_right:Hide()
+        tl:Hide()
+        tr:Hide()
     end
 
     -- Update distance (if visible)
-    if this.distanceText then
-        local distance, distanceValue = utils.GetDistance(this.guid)
+    local distText = this.distanceText
+    if distText then
+        local distance, distanceValue = utils.GetDistance(guid)
         local distanceColor
         if distance == "∞" then
-            distanceColor = "|cff888888"
+            distanceColor = DIST_COLOR_GREY
         elseif distanceValue > 40 then
-            distanceColor = "|cffff0000"
+            distanceColor = DIST_COLOR_RED
         elseif distanceValue > 30 then
-            distanceColor = "|cffff9900"
+            distanceColor = DIST_COLOR_ORANGE
         elseif distanceValue > 10 then
-            distanceColor = "|cffffff00"
+            distanceColor = DIST_COLOR_YELLOW
         elseif distanceValue > 5 then
-            distanceColor = "|cff00ffff"
+            distanceColor = DIST_COLOR_CYAN
         else
-            distanceColor = "|cff00ff00"
+            distanceColor = DIST_COLOR_GREEN
         end
-        this.distanceText:SetText(string.format("%s%s|r", distanceColor, distance))
-        this.distanceText:Show()
+        distText:SetText(distanceColor .. distance .. "|r")
+        distText:Show()
     end
 
     -- Update timer (if visible)
-    if this.timer then
-        if this.unit_data and this.unit_data.remaining_time and this.unit_data.remaining_time > 0 then
-            this.timer:SetText(string.format("%.1fs", this.unit_data.remaining_time))
-            this.timer:Show()
+    local timer = this.timer
+    if timer then
+        local unit_data = this.unit_data
+        local remaining = unit_data and unit_data.remaining_time
+        if remaining and remaining > 0 then
+            timer:SetText(format("%.1fs", remaining))
+            timer:Show()
         else
-            this.timer:Hide()
+            timer:Hide()
         end
     end
 end
@@ -355,122 +398,136 @@ ui.BarEvent = function()
 end
 
 -- Process units for a specific column filter
+-- Cache parsed filters per column to avoid reparsing every frame
+local columnFilterCache = {}
+
 ui.ProcessColumnUnits = function(columnConfig)
     local visible_units = {}
+    local filterStr = columnConfig.filter
 
-    -- Parse filter
-    local filter_parts = {}
-    local filter_texts = { utils.strsplit(',', columnConfig.filter) }
-    for _, filter_text in pairs(filter_texts) do
-        local name, args = utils.strsplit(':', filter_text)
-        filter_parts[name] = args or true
+    -- Use cached filter parts or parse and cache
+    local filter_parts = columnFilterCache[filterStr]
+    if not filter_parts then
+        filter_parts = {}
+        local filter_texts = { utils.strsplit(',', filterStr) }
+        for _, filter_text in pairs(filter_texts) do
+            local name, args = utils.strsplit(':', filter_text)
+            filter_parts[name] = args or true
+        end
+        columnFilterCache[filterStr] = filter_parts
     end
 
     -- Extract aura filter if present
     local checking_aura_id = filter_parts["aura"]
 
+    local core_guids = RunAway.core.guids
+    local timers = ui.timers
+    local current_time = GetTime()
+
     -- Go through all tracked units
-    for guid, data in pairs(RunAway.core.guids) do
-        -- Cache aura check result to avoid duplicate calls
-        local auraExists, auraDuration = false, 0
-        if checking_aura_id and UnitExists(guid) then
-            auraExists, auraDuration = utils.CheckAura(guid, checking_aura_id)
-            -- Clean up timer if aura has disappeared
-            if not auraExists and ui.timers[guid] and ui.timers[guid][checking_aura_id] then
-                ui.timers[guid][checking_aura_id] = nil
-                -- Clean up empty guid entry
-                local has_timers = false
-                for _ in pairs(ui.timers[guid]) do
-                    has_timers = true
-                    break
-                end
-                if not has_timers then
-                    ui.timers[guid] = nil
-                end
-            end
-        end
-
-        -- Apply filters
-        local should_display = true
-        local auraMatched = false
-        local matched_aura_id = nil
-
-        for name, args in pairs(filter_parts) do
-            if filter[name] then
-                should_display = should_display and filter[name](guid, args)
-
-                if should_display and name == "aura" then
-                    auraMatched = true
-                    matched_aura_id = args
+    for guid, data in pairs(core_guids) do
+        -- Early exit if unit doesn't exist
+        if not UnitExists(guid) then
+            -- Skip this unit
+        else
+            -- Cache aura check result to avoid duplicate calls
+            local auraExists, auraDuration = false, 0
+            if checking_aura_id then
+                auraExists, auraDuration = utils.CheckAura(guid, checking_aura_id)
+                -- Clean up timer if aura has disappeared
+                if not auraExists and timers[guid] and timers[guid][checking_aura_id] then
+                    timers[guid][checking_aura_id] = nil
+                    -- Clean up empty guid entry
+                    local has_timers = false
+                    for _ in pairs(timers[guid]) do
+                        has_timers = true
+                        break
+                    end
+                    if not has_timers then
+                        timers[guid] = nil
+                    end
                 end
             end
-        end
 
-        -- Check if unit exists and should be displayed
-        if UnitExists(guid) and should_display then
-            local remaining_time = 0
+            -- Apply filters
+            local should_display = true
+            local auraMatched = false
+            local matched_aura_id = nil
 
-            -- If aura matched, calculate remaining time (reuse cached aura check)
-            if auraMatched and matched_aura_id then
-                local current_time = GetTime()
-                -- Reuse the cached aura check result instead of calling CheckAura again
-                local exist, total_duration = auraExists, auraDuration
+            for name, args in pairs(filter_parts) do
+                local filterFunc = filter[name]
+                if filterFunc then
+                    if not filterFunc(guid, args) then
+                        should_display = false
+                        break  -- Early exit on first failed filter
+                    end
+                    if name == "aura" then
+                        auraMatched = true
+                        matched_aura_id = args
+                    end
+                end
+            end
 
-                if exist then
+            -- Check if unit should be displayed
+            if should_display then
+                local remaining_time = 0
+
+                -- If aura matched, calculate remaining time (reuse cached aura check)
+                if auraMatched and matched_aura_id and auraExists then
                     -- Initialize timer tracking
-                    if not ui.timers[guid] then
-                        ui.timers[guid] = {}
+                    if not timers[guid] then
+                        timers[guid] = {}
                     end
 
-                    if ui.timers[guid][matched_aura_id] then
-                        remaining_time = total_duration - (current_time - ui.timers[guid][matched_aura_id])
-                        remaining_time = math.max(0, remaining_time)
+                    local timerStart = timers[guid][matched_aura_id]
+                    if timerStart then
+                        remaining_time = auraDuration - (current_time - timerStart)
+                        if remaining_time < 0 then remaining_time = 0 end
                     else
-                        ui.timers[guid][matched_aura_id] = current_time
-                        remaining_time = total_duration
+                        timers[guid][matched_aura_id] = current_time
+                        remaining_time = auraDuration
                     end
                 end
+
+                -- Get distance for sorting
+                local _, distanceValue = utils.GetDistance(guid)
+
+                tinsert(visible_units, {
+                    guid = guid,
+                    last_seen = data.time,
+                    remaining_time = remaining_time,
+                    distance = distanceValue or 999,
+                })
             end
-
-            -- Get distance for sorting
-            local _, distanceValue = utils.GetDistance(guid)
-
-            table.insert(visible_units, {
-                guid = guid,
-                last_seen = data.time,
-                remaining_time = remaining_time,
-                distance = distanceValue or 999,
-            })
         end
     end
 
     -- Clean up timers for units no longer tracked
-    for guid in pairs(ui.timers) do
-        if not RunAway.core.guids[guid] then
-            ui.timers[guid] = nil
+    for guid in pairs(timers) do
+        if not core_guids[guid] then
+            timers[guid] = nil
         end
     end
 
     -- Sort if configured (stable sort with configurable order)
-    if columnConfig.sortBy then
+    local sortBy = columnConfig.sortBy
+    if sortBy then
         local sortAsc = (columnConfig.sortOrder == "asc")
-        local sortKey = columnConfig.sortBy  -- "timer" or "distance"
 
-        table.sort(visible_units, function(a, b)
+        tsort(visible_units, function(a, b)
             -- Get sort values based on sortBy config
             local aVal, bVal
-            if sortKey == "timer" then
+            if sortBy == "timer" then
                 aVal, bVal = a.remaining_time, b.remaining_time
-            elseif sortKey == "distance" then
+            elseif sortBy == "distance" then
                 aVal, bVal = a.distance, b.distance
             else
                 return a.guid < b.guid  -- Fallback to guid sort
             end
 
             -- Primary sort by configured key (use tolerance for stable sorting)
-            local tolerance = 0.1  -- Treat values within 0.1 as equal to prevent flickering
             local diff = aVal - bVal
-            if math.abs(diff) > tolerance then
+            if abs(diff) > 0.1 then
                 if sortAsc then
                     return aVal < bVal
                 else

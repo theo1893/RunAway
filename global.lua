@@ -19,7 +19,7 @@ local RunAway_defaults = {
         },
         ["卡拉赞之塔"] = {
             order = 3,
-            bosses = { "阿诺玛鲁斯" }
+            bosses = { "阿诺玛鲁斯", "国王"}
         },
     },
 
@@ -44,7 +44,7 @@ local RunAway_defaults = {
                     showTimer = true,
                     sortBy = timer, -- "timer", "distance", or nil (no sort)
                     sortOrder = "asc", -- "asc" or "desc"
-                    alignment = "right",
+                    alignment = "center",
                     colors = {
                         bgColor = { 0.3, 0.1, 0.1, 0.9 },
                         borderColor = { 1, 0.2, 0.2, 1 },
@@ -62,6 +62,53 @@ local RunAway_defaults = {
                     showDistance = true,
                     showTimer = true,
                     sortBy = "timer", -- "timer", "distance", or nil (no sort)
+                    sortOrder = "desc", -- "asc" or "desc"
+                    alignment = "center",
+                    colors = {
+                        bgColor = { 0.1, 0.2, 0.1, 0.9 },
+                        borderColor = { 0.2, 0.8, 0.2, 1 },
+                        titleColor = { 0.4, 1, 0.4, 1 }
+                    }
+                }
+            }
+        },
+        ["国王"] = {
+            name = "国王",
+            anchor = "CENTER",
+            x = 0,
+            y = 0,
+            scale = 1.2,
+            columns = {
+                {
+                    title = "心控",
+                    enabled = true,
+                    filter = "aura:shadowworddominate",
+                    width = 120,
+                    height = 14,
+                    spacing = 4,
+                    maxrow = 20,
+                    showDistance = true,
+                    showTimer = false,
+                    sortBy = nil, -- "timer", "distance", or nil (no sort)
+                    sortOrder = "asc", -- "asc" or "desc"
+                    alignment = "center",
+                    colors = {
+                        bgColor = { 0.3, 0.1, 0.1, 0.9 },
+                        borderColor = { 1, 0.2, 0.2, 1 },
+                        titleColor = { 1, 0.4, 0.4, 1 }
+                    }
+                },
+                {
+                    title = "下跪",
+                    enabled = true,
+                    filter = "aura:brokenheart",
+                    width = 120,
+                    height = 14,
+                    spacing = 4,
+                    maxrow = 20,
+                    showDistance = true,
+                    showTimer = false,
+                    sortBy = nil, -- "timer", "distance", or nil (no sort)
                     sortOrder = "desc", -- "asc" or "desc"
                     alignment = "center",
                     colors = {
@@ -137,9 +184,11 @@ local RunAway_defaults = {
     auras = {
         ["watershield"] = { icon = "Interface\\Icons\\Ability_Shaman_WaterShield", duration = 0 },
         ["bandage"] = { icon = "Interface\\Icons\\INV_Misc_Bandage_08", duration = 60 },
-        ["arcaneoverload"] = { icon = "Interface\\Icons\\INV_Misc_Bomb_04", duration = 15 },
+        ["arcaneoverload"] = { icon = "Interface\\Icons\\Spell_Nature_WispSplode", duration = 15 },
         ["arcanedampening"] = { icon = "Interface\\Icons\\Spell_Nature_AbolishMagic", duration = 45 },
         ["frostblast"] = { icon = "Interface\\Icons\\Spell_Frost_FreezingBreath", duration = 0 },
+        ["shadowworddominate"] = { icon = "Interface\\Icons\\Spell_Shadow_ShadowWordDominate", duration = 0 },
+        ["brokenheart"] = { icon = "Interface\\Icons\\Spell_BrokenHeart", duration = 0 },
     },
 }
 
