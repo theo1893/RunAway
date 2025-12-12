@@ -10,11 +10,13 @@ local utils = {}
 -- ============================================================================
 utils.arcaneOverloadHistory = {}
 utils.arcaneDampeningActive = {}  -- Track players currently showing arcanedampening
+utils.arcaneDampeningStartTime = {}  -- playerName -> GetTime() when dampening started
 
 -- Reset Arcane Overload tracking (called when boss combat ends)
 utils.ResetArcaneOverloadHistory = function()
     utils.arcaneOverloadHistory = {}
     utils.arcaneDampeningActive = {}
+    utils.arcaneDampeningStartTime = {}
 end
 
 -- ============================================================================
@@ -216,88 +218,66 @@ utils.CheckAura = function(unit, auraId)
     local duration = auraData.duration
 
     -- Special case: arcaneoverload requires 2 debuffs with the same icon
+    -- When overload disappears, transition player to arcanedampening tracking
     if auraId == "arcaneoverload" then
+        local unitName = UnitName(unit)
         local i = 1
         local count = 0
         local buffIcon = UnitDebuff(unit, i)
         while buffIcon do
             if buffIcon == targetIcon then
                 count = count + 1
-                if count >= 2 then
-                    -- Record this unit in arcaneOverloadHistory
-                    local unitName = UnitName(unit)
-                    if unitName then
-                        utils.arcaneOverloadHistory[unitName] = true
-                    end
-                    return true, duration
-                end
             end
             i = i + 1
             buffIcon = UnitDebuff(unit, i)
         end
-        return false, 0
+
+        if count >= 2 then
+            -- Has overload: record in history, clear any dampening
+            if unitName then
+                utils.arcaneOverloadHistory[unitName] = true
+                utils.arcaneDampeningActive[unitName] = nil
+                utils.arcaneDampeningStartTime[unitName] = nil
+            end
+            return true, duration
+        else
+            -- No overload: if was in history, transition to dampening
+            if unitName and utils.arcaneOverloadHistory[unitName] then
+                utils.arcaneOverloadHistory[unitName] = nil
+                utils.arcaneDampeningActive[unitName] = true
+                utils.arcaneDampeningStartTime[unitName] = GetTime()
+            end
+            return false, 0
+        end
     end
 
-    -- Special case: arcanedampening requires prior arcaneoverload
+    -- Special case: arcanedampening is detected when arcaneoverload disappears
+    -- No icon scanning needed - just check tracking state and timer
     if auraId == "arcanedampening" then
         local unitName = UnitName(unit)
         if not unitName then
             return false, 0
         end
 
-        -- Check if arcanedampening debuff currently exists
-        local hasDampening = false
-        local i = 1
-        local buffIcon = UnitDebuff(unit, i)
-        while buffIcon do
-            if buffIcon == targetIcon then
-                hasDampening = true
-                break
-            end
-            i = i + 1
-            buffIcon = UnitDebuff(unit, i)
-        end
-
-        -- If player was showing dampening but debuff is now gone, clear history (cycle complete)
-        if not hasDampening then
-            if utils.arcaneDampeningActive[unitName] then
-                utils.arcaneDampeningActive[unitName] = nil
-                utils.arcaneOverloadHistory[unitName] = nil
-            end
+        -- Check if player is tracked as having dampening
+        if not utils.arcaneDampeningActive[unitName] then
             return false, 0
         end
 
-        -- If player is already showing dampening, keep returning true
-        if utils.arcaneDampeningActive[unitName] then
-            return true, duration
-        end
-
-        -- New dampening detected: validate against arcaneoverload history
-        if not utils.arcaneOverloadHistory[unitName] then
+        -- Check if 45s timer has expired
+        local startTime = utils.arcaneDampeningStartTime[unitName]
+        if not startTime then
             return false, 0
         end
 
-        -- Edge case: player must NOT currently have arcaneoverload (2 stacks)
-        local overloadIcon = auras["arcaneoverload"] and auras["arcaneoverload"].icon
-        if overloadIcon then
-            local j = 1
-            local overloadCount = 0
-            local oBuffIcon = UnitDebuff(unit, j)
-            while oBuffIcon do
-                if oBuffIcon == overloadIcon then
-                    overloadCount = overloadCount + 1
-                    if overloadCount >= 2 then
-                        -- Still has arcaneoverload, don't recognize arcanedampening yet
-                        return false, 0
-                    end
-                end
-                j = j + 1
-                oBuffIcon = UnitDebuff(unit, j)
-            end
+        local elapsed = GetTime() - startTime
+        if elapsed >= duration then
+            -- Timer expired, clear tracking
+            utils.arcaneDampeningActive[unitName] = nil
+            utils.arcaneDampeningStartTime[unitName] = nil
+            return false, 0
         end
 
-        -- Validated! Mark as active and return true
-        utils.arcaneDampeningActive[unitName] = true
         return true, duration
     end
 
